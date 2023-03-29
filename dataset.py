@@ -19,8 +19,6 @@ class Databank():
         self.n_samples = X.shape[0]*X.shape[1]
         self.n_members = X.shape[-1]
 
-        print(f"Altitutde after: {self.P[0, -1]}")
-
         self.index = np.stack(np.meshgrid(np.arange(0, X.shape[0]), np.arange(0, X.shape[1])), axis = 0)
         self.index = np.reshape(self.index, (self.index.shape[0], np.prod(self.index.shape[1:])))
 
@@ -55,9 +53,6 @@ class Dataset(torch.utils.data.Dataset):
         self.P_batch = torch.zeros((batch_size, self.databank.P.shape[1] + 1))
         # [batch_size, lead_time]
         self.Y_batch = torch.zeros((batch_size, lead_time), dtype = torch.float32)
-
-        print(databank.T.shape)
-        print(databank.P.shape)
 
         if cuda:
 

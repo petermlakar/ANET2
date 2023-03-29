@@ -9,9 +9,11 @@ import sys
 from dataset import Databank, Dataset, norm, normalize, denormalize, load_training_dataset, load_validation_dataset
 import netCDF4
 
+from time import time as timef
+
 import matplotlib.pyplot as plt
 
-CUDA = True 
+CUDA = torch.cuda.is_available() 
 
 #########################################################
 
@@ -94,19 +96,26 @@ q = q.cuda() if CUDA else q
 print(f"Num quantiles: {q.shape}")
 
 ##################################
-x, p, _, _ = D.__getitem__(0)
-torch.onnx.export(M, (x, p), "G.onnx")
+#x, p, _, _ = D.__getitem__(0)
+#torch.onnx.export(M, (x, p), "G.onnx")
 
 ##################################
 
 with torch.no_grad():
     
+    start_time = timef()
+
     for i in range(len(D)):
 
         x, p, y, idx = D.__getitem__(i)
-        P[idx[0, :], idx[1, :], :, :]  = torch.squeeze(M.iF(x, p, q.expand(y.shape[0], y.shape[1], -1)), dim = -1).detach().cpu().numpy()
+        qtmp = q.expand(y.shape[0], y.shape[1], -1)
 
-        print(f"{i + 1}/{len(D)}: {y.shape}")
+        f = M.iF(x, p, qtmp)
+
+        P[idx[0, :], idx[1, :], :, :]  = torch.squeeze(f, dim = -1).detach().cpu().numpy()
+        #print(f"{i + 1}/{len(D)}: {y.shape} || {avg_time/(i + 1)}")
+
+    print(f"Execution time time: {timef() - start_time} seconds")
 
 
 print(P.shape)
@@ -116,8 +125,6 @@ print(X.shape)
 P = denormalize(P, Y_mean, Y_std)
 Y = denormalize(Y, Y_mean, Y_std)
 X = denormalize(X, X_mean, X_std)
-
-np.save(join(EVALUATION_OUTPUT, f"pp_quantiles_{DATASET_TYPE}"), P)
 
 # Write netCDF4 file #
 
@@ -139,7 +146,7 @@ t2m = netcdf.createVariable("t2m", np.float32, ("station_id", "time", "step", "n
 t2m.institution = INSTITUTION
 t2m.tier = TIER
 t2m.experiment = EXPERIMENT
-t2m.model = MODEL
+t2m.model = MODEL_NAME
 t2m.version = VERSION
 t2m.output = "quantiles"
 

@@ -12,8 +12,7 @@ from dataset import Databank, Dataset, norm, normalize, load_training_dataset, l
 
 #########################################################
 
-# Set to True if training on GPU is wanted #
-CUDA = True 
+CUDA = torch.cuda.is_available()
 
 #########################################################
 
@@ -22,11 +21,11 @@ if len(sys.argv) == 1:
     sys.exit(2)
 
 if sys.argv[1] == "ANET2":
-    from ANET2 import Model
+    from models.ANET2 import Model
 elif sys.argv[1] == "ANET2_NORM":
-    from ANET2_NORM import Model
+    from models.ANET2_NORM import Model
 elif sys.argv[1] == "ANET2_BERN":
-    from ANET2_BERN import Model
+    from models.ANET2_BERN import Model
 else:
     print(f"Invalid model type \"{sys.argv[1]}\" valid types include: (ANET2), (ANET2_NORM), (ANET2_BERN)")
 
