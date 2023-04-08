@@ -35,7 +35,7 @@ python3 train.py ANET2_NORM /path/to/EUPPBench/data/folder
 
 ### Train model on custom data
 
-**ANET2** and its variant can also be trained on custom data with a varying amount of per-station predictors and custom lead time.
+**ANET2** and its variants can also be trained on custom data with a varied amount of per-station predictors and custom lead time.
 ```python
 
 import torch
