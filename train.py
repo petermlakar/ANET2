@@ -17,7 +17,7 @@ CUDA = torch.cuda.is_available()
 #########################################################
 
 if len(sys.argv) == 1:
-    print("Usage: python3 <model type> <path to data> <optional postfix>")
+    print("Usage: python3 train.py <model type> <path to data> <optional postfix>")
     sys.exit(2)
 
 if sys.argv[1] == "ANET2":

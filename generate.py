@@ -11,8 +11,6 @@ import netCDF4
 
 from time import time as timef
 
-import matplotlib.pyplot as plt
-
 CUDA = torch.cuda.is_available() 
 
 #########################################################
