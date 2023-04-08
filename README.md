@@ -19,6 +19,12 @@ pip3 install numpy==1.23.5 torch=1.13.1 netCDF4==1.6.2 xarray==2022.11.0
 ### Training the model
 
 The training script facilitates the training of three different ANET2 variants, described in more detail in Mlakar et al., [2023](https://doi.org/10.48550/arXiv.2303.17610).
+To train the default ANET2 variant:
+```console
+python3 train.py ANET2 /path/to/data/folder
+```
+
+
 
 ### Inference
 
