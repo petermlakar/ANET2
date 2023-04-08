@@ -16,12 +16,12 @@ CUDA = torch.cuda.is_available()
 #########################################################
 
 if len(sys.argv) < 3:
-    print("Usage: python3 <base path> <model name> <path to data>")
+    print("Usage: python3 <output path> <model folder path> <path to data>")
     exit()
 
 PATH = sys.argv[1]
-MODEL_PATH = join(PATH, sys.argv[2])
-MODEL_NAME = sys.argv[2]
+MODEL_PATH = sys.argv[2]
+MODEL_NAME = sys.argv[2].split("/")[-1]
 DATA_PATH = sys.argv[3]
 DATASET_TYPE = "test"
 
@@ -67,7 +67,7 @@ P_lnd_st = normalize(P_lnd_st, P_lnd_mean_st, P_lnd_std_st)
 
 BATCH_SIZE = 512
 MODEL_PATH = join(MODEL_PATH, f"Model_valid")
-EVALUATION_OUTPUT = join(PATH, f"{MODEL_NAME}_generated_output")
+EVALUATION_OUTPUT = join(PATH, f"{MODEL_NAME}_inference_output")
 
 if not exists(EVALUATION_OUTPUT):
     mkdir(EVALUATION_OUTPUT)

@@ -70,7 +70,7 @@ opt = torch.optim.Adam(model.parameters(), lr = LEARNING_RATE, weight_decay = 1e
 D = ...
 ####
 
-# Conduct training for one epoch
+# Conduct training for one epoch (one pass through the training dataset)
 
 for i in range(len(D)):
 	
@@ -87,6 +87,31 @@ for i in range(len(D)):
 
 ### Inference
 
-## Example
+If the train.py script is used for training it outputs the following folder
+```console
+trained model folder := <MODEL_NAME>_<LEARNING_RATE>_<BATCH_SIZE>_<TIMESTAMP><POSTFIX>
+```
+which contains the trained **ANET2** model files.
+The folder can then be passed to the generate.py script to construct the inferences for the EUPPBench test dataset.
+These will be saved at a custom, used defined location with the **_inference_output** postfix.
+
+```console
+python3 generate.py /inference/output/path /trained/model/folder/path /path/to/EUPPBench/data/folder 
+```
 
 ## Publication
+
+Peter Mlakar, Janko Merše, and Jana Faganeli Pucer. (2023). Ensemble weather forecast post-processing with a flexible probabilistic neural network approach.
+
+Cite as:
+
+```console
+@misc{mlakar2023ensemble,
+      title={Ensemble weather forecast post-processing with a flexible probabilistic neural network approach}, 
+      author={Peter Mlakar and Janko Merše and Jana Faganeli Pucer},
+      year={2023},
+      eprint={2303.17610},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG}
+}
+```

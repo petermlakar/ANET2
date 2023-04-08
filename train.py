@@ -64,7 +64,7 @@ TOLERANCE = 3000
 #########################################################
 
 TIMESTAMP = str(datetime.now()).replace(" ", "_").split(":")[0]
-OUTPUT_PREFIX = f"Model_{LEARNING_RATE}_{BATCH_SIZE}_{TIMESTAMP}{POSTFIX}" # CHANGE THIS APPROPRIATELY BEFORE TRAINING #
+OUTPUT_PREFIX = f"{sys.argv[1]}_{LEARNING_RATE}_{BATCH_SIZE}_{TIMESTAMP}{POSTFIX}" # CHANGE THIS APPROPRIATELY BEFORE TRAINING #
 
 BASE_PATH = join(".", OUTPUT_PREFIX)
 
