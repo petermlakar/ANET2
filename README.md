@@ -7,9 +7,7 @@
 AtmosphereNET 2.0 (ANET2) is a state-of-the-art neural network algorithm for probabilistic ensemble weather forecast post-processing using normalizing flows as parametric distribution models.
 ANET2 is able to model varying distributions without the need to specify the target distribution beforehand.
 
-## Setup
-
-### Requirements
+## Requirements
 
 To train the ANET2 model the following Python libraries are required and can be installed with pip:
 ```console
