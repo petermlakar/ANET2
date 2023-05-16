@@ -45,7 +45,7 @@ from models.ANET2 import Model
 
 LEARNING_RATE = 1e-3
 LEAD_TIME = 21                      # Lead time can be modified according to specific dataset needs
-NUMER_OF_PER_STATION_PREDICTORS = 9 # Number of per-station predictors can be modified according to specific dataset needs
+NUMBER_OF_PER_STATION_PREDICTORS = 9 # Number of per-station predictors can be modified according to specific dataset needs
 
 
 model = Model(number_of_predictors = NUMBER_OF_PER_STATION_PREDICTORS, lead_time = LEAD_TIME)
