@@ -24,7 +24,7 @@ class SkipBlock(nn.Module):
 
 class Model(nn.Module):
 
-    def __init__(self, number_of_predictors, lead_time):
+    def __init__(self, number_of_predictors, lead_time, positive_support = False, monotone = False):
 
         super().__init__()
 
@@ -34,6 +34,13 @@ class Model(nn.Module):
         self.degree = 12
         self.nquantiles = 100
 
+        # Enforce a positive support for the Bernstein quanilte function
+        # and enforce the monotonicity of the coefficients which in turn
+        # results in the monotonicity of the quantile function.
+        self.positive_support = positive_support
+        self.monotone = monotone
+
+        # Bernstein quantile function coefficient regression neural network
         self.R = nn.Sequential(
 
                 nn.Linear(number_of_predictors + lead_time*2, 128),
@@ -50,7 +57,7 @@ class Model(nn.Module):
                 nn.Linear(128, (self.degree + 1)*lead_time, dtype = torch.float32))
 
         ########################################################################
-        # Compute binomial coefficients and required parameters
+        # Compute binomial coefficients and the remaining required parameters
         
         step = 1.0/(self.nquantiles + 1)
         self.q = torch.arange(step, 1.0, step = step, requires_grad = False)
