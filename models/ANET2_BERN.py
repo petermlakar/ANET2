@@ -97,7 +97,10 @@ class Model(nn.Module):
     def loss(self, x, p, f):
 
         a = self(x, p)
-        #a = torch.cumsum(torch.cat([torch.unsqueeze(a[:, :, 0], dim = -1), self.sfp(a[:, :, 1:])], dim = -1), dim = -1)
+
+        # Enforce monotonicity by means of cumulative sum of positive increments
+        if self.monotone:
+            a = torch.cumsum(torch.cat([a[:, :, 0][..., None], self.sfp(a[:, :, 1:])], dim = -1), dim = -1)
 
         # Transform y into latent distribution
         
@@ -146,7 +149,10 @@ class Model(nn.Module):
     def iF(self, x, p, f):
         
         a = self(x, p)
-        #a = torch.cumsum(torch.cat([torch.unsqueeze(a[:, :, 0], dim = -1), self.sfp(a[:, :, 1:])], dim = -1), dim = -1)
+
+        # Enforce monotonicity by means of cumulative sum of positive increments
+        if self.monotone:
+            a = torch.cumsum(torch.cat([a[:, :, 0][..., None], self.sfp(a[:, :, 1:])], dim = -1), dim = -1)
         
         return self._iF(a, f)
 
