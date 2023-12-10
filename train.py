@@ -14,6 +14,8 @@ from dataset import Databank, Dataset, norm, normalize, load_training_dataset, l
 
 CUDA = torch.cuda.is_available()
 
+MODEL_RESIDUALS = False 
+
 #########################################################
 
 if len(sys.argv) == 1:
@@ -30,7 +32,8 @@ else:
     print(f"Invalid model type \"{sys.argv[1]}\" valid types include: (ANET2), (ANET2_NORM), (ANET2_BERN)")
 
 PATH = sys.argv[2]
-POSTFIX = "_" + sys.argv[3]
+
+POSTFIX = ("_" + sys.argv[3] if len(sys.argv) == 4 else "") + "_residuals" if MODEL_RESIDUALS else ""
 
 #### Load training data, remove nan ####
 
@@ -49,7 +52,7 @@ P_lat_mean_st, P_lat_std_st,\
 P_lon_mean_st, P_lon_std_st,\
 P_lnd_mean_st, P_lnd_std_st,\
 _, _,\
-time_train, time_valid = load_training_dataset(PATH)
+time_train, time_valid = load_training_dataset(PATH, MODEL_RESIDUALS)
 
 bank_training   = Databank(X, Y, [P_alt_md, P_alt_st, P_lat_md, P_lat_st, P_lon_md, P_lon_st, P_lnd_md, P_lnd_st], time_train, cuda = CUDA)
 bank_validation = Databank(vX, vY, [P_alt_md, P_alt_st, P_lat_md, P_lat_st, P_lon_md, P_lon_st, P_lnd_md, P_lnd_st], time_valid, cuda = CUDA)
@@ -59,7 +62,7 @@ bank_validation = Databank(vX, vY, [P_alt_md, P_alt_st, P_lat_md, P_lat_st, P_lo
 N_EPOCHS = 3000
 LEARNING_RATE = 1e-3
 BATCH_SIZE    = 256
-TOLERANCE = 3000
+TOLERANCE = 100
 
 #########################################################
 
@@ -122,9 +125,12 @@ for e in range(N_EPOCHS):
         train_loss += loss.item()
         c_train += 1
 
+        if (i + 1) % 100 == 0:
+            print(f"    Training loss {i + 1}/{len(D_train)}: {train_loss/c_train}")
+
     D_train.__on_epoch_end__()
 
-    #### Test an epoch ####
+    #### Validate an epoch ####
     
     M.eval()
     with torch.no_grad():
@@ -140,6 +146,9 @@ for e in range(N_EPOCHS):
 
             valid_loss += loss
             c_valid += 1
+
+            if (i + 1) % 50 == 0:
+                print(f"    Validation loss {i + 1}/{len(D_valid)}: {valid_loss/c_valid}")
 
     D_valid.__on_epoch_end__()
 

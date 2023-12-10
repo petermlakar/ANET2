@@ -109,7 +109,7 @@ def normalize(T, m, s):
 def denormalize(T, m, s):
     return T*s + m
 
-def load_training_dataset(path):
+def load_training_dataset(path, MODEL_RESIDUALS = False):
 
     X = xr.open_dataarray(join(path, "ESSD_benchmark_training_data_forecasts.nc"))
     Y = xr.open_dataarray(join(path, "ESSD_benchmark_training_data_observations.nc")).to_numpy()
@@ -191,11 +191,24 @@ def load_training_dataset(path):
     P_lon_st, P_lon_mean_st, P_lon_std_st = norm(P_lon_st)
     P_lnd_st, P_lnd_mean_st, P_lnd_std_st = norm(P_lnd_st)
 
-    tX, tX_mean, tX_std = norm(tX)
-    tY = (tY - tX_mean)/tX_std
+    if MODEL_RESIDUALS:
 
-    vX = (vX - tX_mean)/tX_std
-    vY = (vY - tX_mean)/tX_std
+       tY = tY - tX.mean(axis = -1)
+       vY = vY - vX.mean(axis = -1)
+
+       tX, tX_mean, tX_std = norm(tX)
+       tY, tY_mean, tY_std = norm(tY, remove_nan = True)
+
+       vX = (vX - tX_mean)/tX_std
+       vY = (vY - tY_mean)/tY_std
+
+    else:
+
+        tX, tX_mean, tX_std = norm(tX)
+        tY = (tY - tX_mean)/tX_std
+
+        vX = (vX - tX_mean)/tX_std
+        vY = (vY - tX_mean)/tX_std
 
     return tX, tY,\
     vX, vY,\

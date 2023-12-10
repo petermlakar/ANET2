@@ -100,6 +100,10 @@ class Model(nn.Module):
 
         # Enforce monotonicity by means of cumulative sum of positive increments
         if self.monotone:
+            
+            if self.positive_support:
+                a[:, :, 0] = self.sfp(a[:, :, 0])
+
             a = torch.cumsum(torch.cat([a[:, :, 0][..., None], self.sfp(a[:, :, 1:])], dim = -1), dim = -1)
 
         # Transform y into latent distribution
@@ -152,6 +156,10 @@ class Model(nn.Module):
 
         # Enforce monotonicity by means of cumulative sum of positive increments
         if self.monotone:
+
+            if self.positive_support:
+                a[:, :, 0] = self.sfp(a[:, :, 0])
+
             a = torch.cumsum(torch.cat([a[:, :, 0][..., None], self.sfp(a[:, :, 1:])], dim = -1), dim = -1)
         
         return self._iF(a, f)
