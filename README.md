@@ -8,7 +8,7 @@
 It is defined by the combination of a neural network architecture, denoted as **ANET2**, and a probabilistic, parametric forecast model.
 The parametric forecast model can be one of three different approaches:
 
-* normal distribution (**ANET2 Norm**)
+* Normal distribution (**ANET2 Norm**)
 * Bernstein quantile regression (**ANET2 Bern**)
 * Normalizing flows (**ANET2 Flow**)
 
