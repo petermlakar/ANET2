@@ -22,14 +22,14 @@ if len(sys.argv) == 1:
     print("Usage: python3 train.py <model type> <path to data> <optional postfix>")
     sys.exit(2)
 
-if sys.argv[1] == "ANET2":
+if sys.argv[1] == "FLOW":
     from models.ANET2 import Model
-elif sys.argv[1] == "ANET2_NORM":
+elif sys.argv[1] == "NORM":
     from models.ANET2_NORM import Model
-elif sys.argv[1] == "ANET2_BERN":
+elif sys.argv[1] == "BERN":
     from models.ANET2_BERN import Model
 else:
-    print(f"Invalid model type \"{sys.argv[1]}\" valid types include: (ANET2), (ANET2_NORM), (ANET2_BERN)")
+    print(f"Invalid model type \"{sys.argv[1]}\" valid types include: (NORM), (FLOW), (BERN)")
 
 PATH = sys.argv[2]
 
@@ -59,10 +59,10 @@ bank_validation = Databank(vX, vY, [P_alt_md, P_alt_st, P_lat_md, P_lat_st, P_lo
 
 #########################################################
 
-N_EPOCHS = 3000
+N_EPOCHS = 600
 LEARNING_RATE = 1e-3
 BATCH_SIZE    = 256
-TOLERANCE = 100
+TOLERANCE = 600
 
 #########################################################
 
@@ -125,7 +125,7 @@ for e in range(N_EPOCHS):
         train_loss += loss.item()
         c_train += 1
 
-        if (i + 1) % 100 == 0:
+        if (i + 1) % 500 == 0:
             print(f"    Training loss {i + 1}/{len(D_train)}: {train_loss/c_train}")
 
     D_train.__on_epoch_end__()
