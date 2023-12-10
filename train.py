@@ -160,7 +160,7 @@ for e in range(N_EPOCHS):
     valid_loss /= c_valid
 
     print(f"{e + 1}/{N_EPOCHS}: TLoss {train_loss} VLoss {valid_loss}\n")
-    
+
     train_losses[e] = train_loss
     valid_losses[e] = valid_loss
 
@@ -179,6 +179,8 @@ for e in range(N_EPOCHS):
         jit.save(jit.script(M.cpu()), join(BASE_PATH, f"Model_valid"))
         if CUDA:
             M.cuda()
+
+    print(f"Best validation loss: {best_valid_loss}")
 
     np.savetxt(join(BASE_PATH, f"Train_loss"), train_losses[0:e + 1])
     np.savetxt(join(BASE_PATH, f"Valid_loss"), valid_losses[0:e + 1])
