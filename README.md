@@ -28,6 +28,12 @@ pip3 install numpy==1.23.5 torch=1.13.1 netCDF4==1.6.2 xarray==2022.11.0
 
 The training script facilitates the training of three different **ANET2** variants, described in more detail in Mlakar et al., [2023](https://doi.org/10.48550/arXiv.2303.17610).
 The three **ANET2** variants are:
+
+* **Norm**: Normal distribution used as the parametric distribution model in conjunction with the **ANET2** parameter estimation network
+```console
+python3 train.py NORM /path/to/EUPPBench/data/folder
+```
+
 * **Flow**: The **ANET2** variant using normalizing flows as parametric distribution models in conjunction with the **ANET2** parameter estimation network
 ```console
 python3 train.py FLOW /path/to/EUPPBench/data/folder
@@ -35,10 +41,6 @@ python3 train.py FLOW /path/to/EUPPBench/data/folder
 * **Bern**: Bernstein quantile regression used as the parametric distribution model in conjunction with the **ANET2** parameter estimation network
 ```console
 python3 train.py BERN /path/to/EUPPBench/data/folder 
-```
-* **Norm**: Normal distribution used as the parametric distribution model in conjunction with the **ANET2** parameter estimation network
-```console
-python3 train.py NORM /path/to/EUPPBench/data/folder
 ```
 
 ### Train model on custom data
