@@ -14,7 +14,7 @@ from dataset import Databank, Dataset, norm, normalize, load_training_dataset, l
 
 CUDA = torch.cuda.is_available()
 
-MODEL_RESIDUALS = False 
+MODEL_RESIDUALS = True 
 
 #########################################################
 
@@ -33,7 +33,7 @@ else:
 
 PATH = sys.argv[2]
 
-POSTFIX = ("_" + sys.argv[3] if len(sys.argv) == 4 else "") + "_residuals" if MODEL_RESIDUALS else ""
+POSTFIX = ("_residuals" if MODEL_RESIDUALS else "") + ("_" + sys.argv[3] if len(sys.argv) == 4 else "")
 
 #### Load training data, remove nan ####
 
@@ -159,7 +159,7 @@ for e in range(N_EPOCHS):
     train_loss /= c_train
     valid_loss /= c_valid
 
-    print(f"{e + 1}/{N_EPOCHS}: TLoss {train_loss} VLoss {valid_loss}\n")
+    print(f"{e + 1}/{N_EPOCHS}: TLoss {train_loss} VLoss {valid_loss}")
 
     train_losses[e] = train_loss
     valid_losses[e] = valid_loss
@@ -180,8 +180,6 @@ for e in range(N_EPOCHS):
         if CUDA:
             M.cuda()
 
-    print(f"Best validation loss: {best_valid_loss}")
-
     np.savetxt(join(BASE_PATH, f"Train_loss"), train_losses[0:e + 1])
     np.savetxt(join(BASE_PATH, f"Valid_loss"), valid_losses[0:e + 1])
 
@@ -198,4 +196,5 @@ for e in range(N_EPOCHS):
             print(f"Early stopping at epoch {e_cntr}")
             break
 
+    print(f"Best validation loss: {best_valid_loss}\n")
 
