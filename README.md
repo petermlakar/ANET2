@@ -5,12 +5,15 @@
 </p>
 
 **AtmosphereNET 2.0** (**ANET2**) is a state-of-the-art neural network algorithm for probabilistic ensemble weather forecast post-processing.
-It can formulate forcecast distributions based on three different techniques of choice: 
+It is defined by the combination of a neural network architecture, denoted as **ANET2**, and a probabilistic, parametric forecast model.
+The parametric forecast model can be one of three different approaches:
+
 * normal distribution (**ANET2 Norm**)
 * Bernstein quantile regression (**ANET2 Bern**)
 * Normalizing flows (**ANET2 Flow**)
-using normalizing flows as parametric distribution models.
-**ANET2** is able to model varying distributions without the need to specify the target distribution beforehand.
+
+Here, the postfix of either **Norm**, **Bern**, and **Flow** denotes the different parametric models used in conjunction with the **ANET2** neural network architecure
+for its parameter estimation.
 
 ## Requirements
 
