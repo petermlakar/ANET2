@@ -33,14 +33,13 @@ The three **ANET2** variants are:
 ```console
 python3 train.py NORM /path/to/EUPPBench/data/folder
 ```
-
-* **Flow**: The **ANET2** variant using normalizing flows as parametric distribution models in conjunction with the **ANET2** parameter estimation network
-```console
-python3 train.py FLOW /path/to/EUPPBench/data/folder
-```
 * **Bern**: Bernstein quantile regression used as the parametric distribution model in conjunction with the **ANET2** parameter estimation network
 ```console
 python3 train.py BERN /path/to/EUPPBench/data/folder 
+```
+* **Flow**: The **ANET2** variant using normalizing flows as parametric distribution models in conjunction with the **ANET2** parameter estimation network
+```console
+python3 train.py FLOW /path/to/EUPPBench/data/folder
 ```
 
 ### Train model on custom data
