@@ -6,24 +6,27 @@ from os.path import exists, join
 from os import mkdir
 
 import sys
-from dataset import Databank, Dataset, norm, normalize, denormalize, load_training_dataset, load_validation_dataset
+from dataset import Databank, Dataset, norm, normalize, denormalize, load_training_dataset, load_test_dataset 
 import netCDF4
 
 from time import time as timef
+
+import json
 
 CUDA = torch.cuda.is_available() 
 
 #########################################################
 
-if len(sys.argv) < 3:
-    print("Usage: python3 <output path> <model folder path> <path to data>")
-    exit()
+CFG_PATH = "" if len(sys.argv) == 1 else sys.argv[1]
 
-PATH = sys.argv[1]
-MODEL_PATH = sys.argv[2]
-MODEL_NAME = sys.argv[2].split("/")[-1]
-DATA_PATH = sys.argv[3]
-DATASET_TYPE = "test"
+cfg = json.load(open(join(CFG_PATH, "config.json")))
+
+OUTPUT_PATH = cfg["generate"]["outputPath"] 
+MODEL_PATH  = cfg["generate"]["modelPath"]
+DATA_PATH = cfg["dataPath"]
+RESIDUALS = cfg["generate"]["residuals"] == "True"
+
+print(RESIDUALS)
 
 #### Load training data, remove nan ####
 
@@ -42,13 +45,13 @@ P_lat_mean_st, P_lat_std_st,\
 P_lon_mean_st, P_lon_std_st,\
 P_lnd_mean_st, P_lnd_std_st,\
 _, _,\
-_, _ = load_training_dataset(DATA_PATH)
+_, _ = load_training_dataset(DATA_PATH, MODEL_RESIDUALS = RESIDUALS)
 
 X, Y,\
 P_alt_md, P_lat_md, P_lon_md, P_lnd_md,\
 P_alt_st, P_lat_st, P_lon_st, P_lnd_st,\
 time, stations,\
-valid_time = load_validation_dataset(DATA_PATH)
+valid_time = load_test_dataset(DATA_PATH)
 
 X = normalize(X, X_mean, X_std)
 Y = normalize(Y, Y_mean, Y_std)
@@ -66,11 +69,9 @@ P_lnd_st = normalize(P_lnd_st, P_lnd_mean_st, P_lnd_std_st)
 #########################################################
 
 BATCH_SIZE = 512
-MODEL_PATH = join(MODEL_PATH, f"Model_valid")
-EVALUATION_OUTPUT = join(PATH, f"{MODEL_NAME}_inference_output")
 
-if not exists(EVALUATION_OUTPUT):
-    mkdir(EVALUATION_OUTPUT)
+if not exists(OUTPUT_PATH):
+    mkdir(OUTPUT_PATH)
 
 #########################################################
 
@@ -91,11 +92,7 @@ q = torch.arange(qstep, 1.0, step = qstep, dtype = torch.float32)
 q = torch.reshape(q, (1, 1, q.shape[0]))
 q = q.cuda() if CUDA else q
 
-print(f"Num quantiles: {q.shape}")
-
-##################################
-#x, p, _, _ = D.__getitem__(0)
-#torch.onnx.export(M, (x, p), "G.onnx")
+print(f"Number of quantiles: {q.shape}")
 
 ##################################
 
@@ -105,26 +102,21 @@ with torch.no_grad():
 
     for i in range(len(D)):
 
+        if (i + 1) % 100 == 0:
+            print(f"Inference: {i}/{len(D)}")
+
         x, p, y, idx = D.__getitem__(i)
         qtmp = q.expand(y.shape[0], y.shape[1], -1)
 
         f = M.iF(x, p, qtmp)
+    
+        if RESIDUALS:
+            P[idx[0, :], idx[1, :], :, :] = (f*Y_std + Y_mean + (x*X_std + X_mean).mean(axis = -1)[..., None]).detach().cpu().numpy()
 
-        P[idx[0, :], idx[1, :], :, :]  = torch.squeeze(f, dim = -1).detach().cpu().numpy()
-        #print(f"{i + 1}/{len(D)}: {y.shape} || {avg_time/(i + 1)}")
+        else:
+            P[idx[0, :], idx[1, :], :, :]  = f.detach().cpu().numpy()*X_std + X_mean
 
     print(f"Execution time time: {timef() - start_time} seconds")
-
-
-print(P.shape)
-print(Y.shape)
-print(X.shape)
-
-P = denormalize(P, Y_mean, Y_std)
-Y = denormalize(Y, Y_mean, Y_std)
-X = denormalize(X, X_mean, X_std)
-
-# Write netCDF4 file #
 
 TIER = 1
 INSTITUTION = "ARSO"
@@ -132,9 +124,13 @@ EXPERIMENT = "ESSD-benchmark"
 MODEL = "ANET"
 VERSION = "v2.0"
 
-np.save(join(EVALUATION_OUTPUT, f"{TIER}_{EXPERIMENT}_{INSTITUTION}_{MODEL}_{VERSION}_{DATASET_TYPE}"), P)
+np.save(join(OUTPUT_PATH, f"{TIER}_{EXPERIMENT}_{INSTITUTION}_{MODEL}_{VERSION}_test"), P)
 
-netcdf = netCDF4.Dataset(join(EVALUATION_OUTPUT, f"{TIER}_{EXPERIMENT}_{INSTITUTION}_{MODEL}_{VERSION}_{DATASET_TYPE}.nc"), mode = "w", format = "NETCDF4_CLASSIC")
+"""
+# Write netCDF4 file #
+
+
+netcdf = netCDF4.Dataset(join(EVALUATION_OUTPUT, f"{TIER}_{EXPERIMENT}_{INSTITUTION}_{MODEL}_{VERSION}_test.nc"), mode = "w", format = "NETCDF4_CLASSIC")
 
 netcdf.createDimension("station_id", X.shape[0])
 netcdf.createDimension("number", q.shape[-1])
@@ -165,3 +161,4 @@ netcdf.createVariable("station_land_usage", np.float32, ("station_id"), fill_val
 print(netcdf)
 
 netcdf.close()
+"""

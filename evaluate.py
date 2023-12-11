@@ -16,7 +16,7 @@ import matplotlib.ticker as mticker
 font = {"size"   : 24}    
 matplotlib.rc("font", **font)
 
-from dataset import load_validation_dataset, load_training_dataset
+from dataset import load_test_dataset, load_training_dataset
 import json
 
 from abc import ABC, abstractmethod
@@ -229,7 +229,7 @@ MODELS = cfg["evaluation"]
 
 #########################################################
 
-data  = load_validation_dataset(DATA_PATH)
+data  = load_test_dataset(DATA_PATH)
 X, Y = data[0], data[1]
 
 alt_m = data[2]

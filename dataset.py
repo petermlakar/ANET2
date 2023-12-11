@@ -215,13 +215,13 @@ def load_training_dataset(path, MODEL_RESIDUALS = False):
     P_alt_md, P_lat_md, P_lon_md, P_lnd_md,\
     P_alt_st, P_lat_st, P_lon_st, P_lnd_st,\
     tX_mean, tX_std,\
-    tX_mean, tX_std,\
+    tY_mean, tY_std,\
     P_alt_mean_md, P_alt_std_md, P_lat_mean_md, P_lat_std_md, P_lon_mean_md, P_lon_std_md, P_lnd_mean_md, P_lnd_std_md,\
     P_alt_mean_st, P_alt_std_st, P_lat_mean_st, P_lat_std_st, P_lon_mean_st, P_lon_std_st, P_lnd_mean_st, P_lnd_std_st,\
     time, np.array(stations),\
     time_train, time_valid
 
-def load_validation_dataset(path):
+def load_test_dataset(path):
     
     X = xr.open_dataarray(join(path, "ESSD_benchmark_test_data_forecasts.nc"))
     Y = xr.open_dataarray(join(path, "ESSD_benchmark_test_data_observations.nc")).to_numpy()
