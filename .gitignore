@@ -1,5 +1,7 @@
 *.nc
-BERN_*/
-FLOW_*/
-NORM_*/
+BERN*/
+FLOW*/
+NORM*/
+ANET*/
 __pycache__/*
+*.pdf

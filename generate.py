@@ -132,6 +132,8 @@ EXPERIMENT = "ESSD-benchmark"
 MODEL = "ANET"
 VERSION = "v2.0"
 
+np.save(join(EVALUATION_OUTPUT, f"{TIER}_{EXPERIMENT}_{INSTITUTION}_{MODEL}_{VERSION}_{DATASET_TYPE}"), P)
+
 netcdf = netCDF4.Dataset(join(EVALUATION_OUTPUT, f"{TIER}_{EXPERIMENT}_{INSTITUTION}_{MODEL}_{VERSION}_{DATASET_TYPE}.nc"), mode = "w", format = "NETCDF4_CLASSIC")
 
 netcdf.createDimension("station_id", X.shape[0])

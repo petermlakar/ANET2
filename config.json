@@ -1,0 +1,35 @@
+{
+	"dataPath": "/home/mlakar/Documents/ANET2/data",
+
+	"training": {"modelType": "FLOW", "postfix": ""},
+
+	"generate":
+	{
+		"modelPath":  "",
+		"outputPath": ""
+	},
+
+	"evaluation":	
+	[
+		{
+			"path": "/home/mlakar/Documents/ANET2/data/1_ESSD-benchmark_EMOS_v1.1.nc",
+			"name": "EMOS",
+			"type": "EMOS"
+		},
+		{
+			"path": "/home/mlakar/Documents/ANET2/ANET2_BERN_4x128_SKIP_generated_output/pp_quantiles_test.npy",
+			"name": "BERN",
+			"type": "ANET2"
+		},
+		{
+			"path": "/home/mlakar/Documents/ANET2/ANET2_C1_M_4x128_4x5_generated_output/pp_quantiles_test.npy",
+			"name": "FLOW",
+			"type": "ANET2"
+		},
+		{
+			"path": "/home/mlakar/Documents/ANET2/ANET2_G_4x128_SKIP_generated_output/pp_quantiles_test.npy",
+			"name": "NORM",
+			"type": "ANET2"
+		}
+	]
+}
