@@ -87,18 +87,6 @@ class EvaluationMetrics(ABC):
 
         return np.reshape(c, (s0, s1, s2))
 
-        """
-        I = 1000
-
-        print(c[I])
-        print(tmp[I])
-        print(d0[I])
-        print(d1[I])
-
-        for i in range(1, x.shape[-1]):
-            print("[{:.2f}, {:.2f}] ".format(x[I, i - 1], x[I, i]) + f"alpha: {a[I, i - 1]} beta: {b[I, i - 1]} j: {j[I, i - 1]}" + " -> observation: {:.2f} | p: {:.3f}".format(y[I, 0], p[0, i - 1]))
-        """
-
     def quantile_loss(self, y):
 
         q = self.get_forecast()
@@ -136,8 +124,6 @@ class EvaluationMetrics(ABC):
         x = self.get_forecast_median()
         
         return np.nanmean((x - y), axis = (0, 1))
-
-
 
 #########################################################
 
@@ -258,6 +244,7 @@ for i, model in enumerate(MODELS):
 
 PLOT_PIT  = True
 PLOT_CRPS = True
+PLOT_BIAS = True
 
 #########################################################
 
@@ -329,24 +316,27 @@ exit()
 
 #########################################################
 
-f, a = plt.subplots(1, figsize = (10, 10), dpi = 300)
-a.hlines(0, 0, 21, linestyle = "dashed", color = "black")
+if PLOT_BIAS:
 
-for i, c in enumerate(bias):
+    f, a = plt.subplots(1, figsize = (10, 10), dpi = 300)
+    a.hlines(0, 0, 21, linestyle = "dashed", color = "black")
 
-    a.plot(c, linewidth = 4, label = models[i].get_name(), color = colors[i])
+    for i, c in enumerate(bias):
 
-    a.set_xlabel("Lead time [6 hours]")
-    a.set_ylabel("Bias [Temperature in K]")
+        a.plot(c, linewidth = 4, label = MODELS[i].get_name(), color = colors[i])
 
-a.set_ylim(-0.5, 0.5)
-a.grid()
-#a.legend()
-a.set_aspect((a.get_xlim()[1] - a.get_xlim()[0])/(a.get_ylim()[1] - a.get_ylim()[0]))
+        a.set_xlabel("Lead time [6 hours]")
+        a.set_ylabel("Bias [Temperature in K]")
 
-f.tight_layout()
-f.savefig("rbias.pdf", bbox_inches = "tight", format = "pdf")
-plt.close(f)
+    a.set_ylim(-0.5, 0.5)
+    a.grid()
+    a.set_aspect((a.get_xlim()[1] - a.get_xlim()[0])/(a.get_ylim()[1] - a.get_ylim()[0]))
+
+    f.tight_layout()
+    f.savefig("BIAS.pdf", bbox_inches = "tight", format = "pdf")
+    plt.close(f)
+
+exit()
 
 ##############################
 

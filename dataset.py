@@ -210,6 +210,8 @@ def load_training_dataset(path, MODEL_RESIDUALS = False):
         vX = (vX - tX_mean)/tX_std
         vY = (vY - tX_mean)/tX_std
 
+        tY_mean, tY_std = (tX_mean, tX_std)
+
     return tX, tY,\
     vX, vY,\
     P_alt_md, P_lat_md, P_lon_md, P_lnd_md,\

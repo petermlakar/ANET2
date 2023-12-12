@@ -1,12 +1,18 @@
 {
 	"dataPath": "",
 
-	"training": {"modelType": "FLOW", "postfix": ""},
+	"training": 
+	{
+		"modelType": "", 
+		"postfix": "",
+		"residuals": "True"
+	},
 
 	"generate":
 	{
 		"modelPath":  "",
-		"outputPath": ""
+		"outputPath": "",
+		"residuals": "True"
 	},
 
 	"evaluation":	
