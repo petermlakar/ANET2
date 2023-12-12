@@ -40,7 +40,7 @@ match MODEL_TYPE:
         print(f"Invalid model type in config {MODEL_TYPE}...\nSupported types are: FLOW, NORM, BERN")
         exit()
 
-POSTFIX = ("_residuals" if RESIDUALS else "") + cfg["training"]["postfix"]
+POSTFIX = ("_residuals" if RESIDUALS else "") + ("_" + cfg["training"]["postfix"] if cfg["training"]["postfix"] != "" else "")
 
 #### Load training data, remove nan ####
 
