@@ -216,10 +216,10 @@ MODELS = cfg["evaluation"]
 #########################################################
 
 data  = load_test_dataset(DATA_PATH)
-X, Y = data[0], data[1]
+X, Y, P = data[:3]
 
-alt_m = data[2]
-alt, lat, lon = data[6], data[7], data[8]
+alt_m = P[:, 0]
+alt, lat, lon = P[:, 1], P[:, 3], P[:, 5]
 
 #########################################################
 

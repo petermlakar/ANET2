@@ -46,23 +46,15 @@ POSTFIX = ("_residuals" if RESIDUALS else "") + ("_" + cfg["training"]["postfix"
 
 X, Y,\
 vX, vY,\
-P_alt_md, P_lat_md, P_lon_md, P_lnd_md,\
-P_alt_st, P_lat_st, P_lon_st, P_lnd_st,\
+P,\
 X_mean, X_std,\
 Y_mean, Y_std,\
-P_alt_mean_md, P_alt_std_md,\
-P_lat_mean_md, P_lat_std_md,\
-P_lon_mean_md, P_lon_std_md,\
-P_lnd_mean_md, P_lnd_std_md,\
-P_alt_mean_st, P_alt_std_st,\
-P_lat_mean_st, P_lat_std_st,\
-P_lon_mean_st, P_lon_std_st,\
-P_lnd_mean_st, P_lnd_std_st,\
+P_mean, P_std,\
 _, _,\
 time_train, time_valid = load_training_dataset(DATA_PATH, RESIDUALS)
 
-bank_training   = Databank(X, Y, [P_alt_md, P_alt_st, P_lat_md, P_lat_st, P_lon_md, P_lon_st, P_lnd_md, P_lnd_st], time_train, cuda = CUDA)
-bank_validation = Databank(vX, vY, [P_alt_md, P_alt_st, P_lat_md, P_lat_st, P_lon_md, P_lon_st, P_lnd_md, P_lnd_st], time_valid, cuda = CUDA)
+bank_training   = Databank(X, Y, P, time_train, cuda = CUDA)
+bank_validation = Databank(vX, vY, P, time_valid, cuda = CUDA)
 
 #########################################################
 

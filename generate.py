@@ -32,39 +32,20 @@ print(RESIDUALS)
 
 _, _,\
 _, _,\
-_, _, _, _,\
-_, _, _, _,\
+_,\
 X_mean, X_std,\
 Y_mean, Y_std,\
-P_alt_mean_md, P_alt_std_md,\
-P_lat_mean_md, P_lat_std_md,\
-P_lon_mean_md, P_lon_std_md,\
-P_lnd_mean_md, P_lnd_std_md,\
-P_alt_mean_st, P_alt_std_st,\
-P_lat_mean_st, P_lat_std_st,\
-P_lon_mean_st, P_lon_std_st,\
-P_lnd_mean_st, P_lnd_std_st,\
+P_mean, P_std,\
 _, _,\
 _, _ = load_training_dataset(DATA_PATH, MODEL_RESIDUALS = RESIDUALS)
 
-X, Y,\
-P_alt_md, P_lat_md, P_lon_md, P_lnd_md,\
-P_alt_st, P_lat_st, P_lon_st, P_lnd_st,\
+X, Y, P,\
 time, stations,\
 valid_time = load_test_dataset(DATA_PATH)
 
 X = normalize(X, X_mean, X_std)
 Y = normalize(Y, Y_mean, Y_std)
-
-P_alt_md = normalize(P_alt_md, P_alt_mean_md, P_alt_std_md)
-P_lat_md = normalize(P_lat_md, P_lat_mean_md, P_lat_std_md)
-P_lon_md = normalize(P_lon_md, P_lon_mean_md, P_lon_std_md)
-P_lnd_md = normalize(P_lnd_md, P_lnd_mean_md, P_lnd_std_md)
-
-P_alt_st = normalize(P_alt_st, P_alt_mean_st, P_alt_std_st)
-P_lat_st = normalize(P_lat_st, P_lat_mean_st, P_lat_std_st)
-P_lon_st = normalize(P_lon_st, P_lon_mean_st, P_lon_std_st)
-P_lnd_st = normalize(P_lnd_st, P_lnd_mean_st, P_lnd_std_st)
+P = normalize(P, P_mean, P_std)
 
 #########################################################
 
@@ -75,7 +56,7 @@ if not exists(OUTPUT_PATH):
 
 #########################################################
 
-bank = Databank(X, Y, [P_alt_md, P_alt_st, P_lat_md, P_lat_st, P_lon_md, P_lon_st, P_lnd_md, P_lnd_st], valid_time, cuda = CUDA)
+bank = Databank(X, Y, P, valid_time, cuda = CUDA)
 
 D = Dataset(bank, bank.index, batch_size = BATCH_SIZE, train = False, cuda = CUDA)
 M = torch.jit.load(MODEL_PATH)
