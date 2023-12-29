@@ -106,6 +106,9 @@ class Model(nn.Module):
 
             a = torch.cumsum(torch.cat([a[:, :, 0][..., None], self.sfp(a[:, :, 1:])], dim = -1), dim = -1)
 
+        elif self.positive_support:
+            a = self.sfp(a)
+
         # Transform y into latent distribution
         
         lt = f.shape[1]
@@ -161,6 +164,9 @@ class Model(nn.Module):
                 a[:, :, 0] = self.sfp(a[:, :, 0])
 
             a = torch.cumsum(torch.cat([a[:, :, 0][..., None], self.sfp(a[:, :, 1:])], dim = -1), dim = -1)
-        
+
+        elif self.positive_support:
+            a = self.sfp(a)
+
         return self._iF(a, f)
 
