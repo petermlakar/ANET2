@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import torch.jit as jit
 
+from models.ANET2 import ANET2
+
 class SplineBlock(nn.Module):
 
     def  __init__(self):
@@ -229,20 +231,6 @@ class SplineBlock(nn.Module):
         self.y = y
         self.d = d
 
-class SkipBlock(nn.Module):
-
-    def __init__(self, nfeatures):
-
-        super().__init__()
-
-        self.f = nn.Sequential(
-                nn.Dropout(0.2),
-                nn.Linear(nfeatures, nfeatures),
-                nn.SiLU())
-
-    def forward(self, x):
-        return self.f(x) + x
-
 class Model(nn.Module):
 
     def __init__(self, number_of_predictors, lead_time):
@@ -258,26 +246,12 @@ class Model(nn.Module):
         self.nblocks = 4
         self.nknots  = 5
 
-        self.nparameters = self.nblocks*self.nknots*2
+        self.number_of_parameters = self.nblocks*self.nknots*2
        
         self.spline_block = SplineBlock()
 
-        # Define regression block
-
-        self.R = nn.Sequential(
-
-                nn.Linear(number_of_predictors + lead_time*2, 128),
-                nn.SiLU(),
-               
-                SkipBlock(128),
-
-                SkipBlock(128),
-
-                SkipBlock(128),
-
-                SkipBlock(128),
-
-                nn.Linear(128, self.nparameters*lead_time, dtype = torch.float32))
+        # Define parameter regression neural network for estimating the normalizing spline flow parameters (knot-value pairs)
+        self.parameter_regression = ANET2({"lead_time": lead_time, "number_of_predictors": number_of_predictors}, self.number_of_parameters*lead_time)
 
         self.lq = nn.Parameter(torch.unsqueeze(torch.unsqueeze(torch.arange(1.0/52.0, 1.0, step = 1.0/52.0), dim = 0), dim = 0), requires_grad = False)
 
@@ -286,15 +260,9 @@ class Model(nn.Module):
         # x: [batch, lead, members]
         # p: [batch, predictors]
 
-        m = x.mean(dim = -1, keepdim = True)
-        s = x.std(dim = -1, keepdim = True)
-
-        x = torch.flatten(torch.cat([m, s], dim = -1), start_dim = -2, end_dim = -1)
-        x = torch.cat([x, p], dim = -1)
-
-        Y = self.R(x)
-
-        p = Y.view((Y.shape[0], self.lead_time, self.nblocks, 2, self.nknots))
+        y = self.parameter_regression(x, p)
+        
+        p = y.view((y.shape[0], self.lead_time, self.nblocks, 2, self.nknots))
 
         prm_t = torch.flatten(p[:, :, :, 0], start_dim = 0, end_dim = 1)
         prm_y = torch.flatten(p[:, :, :, 1], start_dim = 0, end_dim = 1)

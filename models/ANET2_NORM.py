@@ -3,19 +3,7 @@ import torch.nn as nn
 import torch.jit as jit
 import numpy as np
 
-class SkipBlock(nn.Module):
-
-    def __init__(self, nfeatures):
-
-        super().__init__()
-
-        self.f = nn.Sequential(
-                nn.Dropout(0.2),
-                nn.Linear(nfeatures, nfeatures),
-                nn.SiLU())
-
-    def forward(self, x):
-        return self.f(x) + x
+from models.ANET2 import ANET2
 
 class Model(nn.Module):
 
@@ -29,37 +17,20 @@ class Model(nn.Module):
         self.sq_r = np.sqrt(2.0) 
         self.sfp = nn.Softplus()
 
-        # Define regression block
-
-        self.R = nn.Sequential(
-
-                nn.Linear(number_of_predictors + lead_time*2, 128),
-                nn.SiLU(),
-               
-                SkipBlock(128),
-
-                SkipBlock(128),
-
-                SkipBlock(128),
-
-                SkipBlock(128),
-
-                nn.Linear(128, 2*lead_time, dtype = torch.float32))
+        # Define parameter regression neural network for mean and variance of normal distribution
+        self.parameter_regression = ANET2({"lead_time": lead_time, "number_of_predictors": number_of_predictors}, 2*lead_time)
 
     def forward(self, x, p):
 
         # x: [batch, lead, members]
         # p: [batch, predictors]
 
-        m = x.mean(dim = -1, keepdim = True)
-        s = x.std(dim = -1, keepdim = True)
+        m = x.mean(dim = -1)
+        s = x.std(dim = -1)
 
-        x = torch.flatten(torch.cat([m, s], dim = -1), start_dim = -2, end_dim = -1)
-        x = torch.cat([x, p], dim = -1)
+        y = self.parameter_regression(x, p)
 
-        Y = self.R(x)
-
-        p = Y.view((Y.shape[0], self.lead_time, 2))
+        p = y.view((y.shape[0], self.lead_time, 2))
 
         prm_mu = p[:, :, 0]
         prm_sg = p[:, :, 1]

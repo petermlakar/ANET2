@@ -4,9 +4,9 @@ import torch.jit as jit
 
 import numpy as np
 
-import time
-
 import math
+
+from models.ANET2 import ANET2
 
 class SkipBlock(nn.Module):
 
@@ -41,20 +41,7 @@ class Model(nn.Module):
         self.monotone = monotone
 
         # Bernstein quantile function coefficient regression neural network
-        self.R = nn.Sequential(
-
-                nn.Linear(number_of_predictors + lead_time*2, 128),
-                nn.SiLU(),
-               
-                SkipBlock(128),
-
-                SkipBlock(128),
-
-                SkipBlock(128),
-
-                SkipBlock(128),
-
-                nn.Linear(128, (self.degree + 1)*lead_time, dtype = torch.float32))
+        self.parameter_regression = ANET2({"lead_time": lead_time, "number_of_predictors": number_of_predictors}, (self.degree + 1)*lead_time)
 
         ########################################################################
         # Compute binomial coefficients and the remaining required parameters
@@ -83,15 +70,9 @@ class Model(nn.Module):
         # x: [batch, lead, members]
         # p: [batch, predictors]
 
-        m = x.mean(dim = -1, keepdim = True)
-        s = x.std(dim = -1, keepdim = True)
-
-        x = torch.flatten(torch.cat([m, s], dim = -1), start_dim = -2, end_dim = -1)
-        x = torch.cat([x, p], dim = -1)
-
-        Y = self.R(x)
+        y = self.parameter_regression(x, p)
        
-        return Y.view((Y.shape[0]*self.lead_time, 1, self.degree + 1))
+        return y.view((y.shape[0]*self.lead_time, 1, self.degree + 1))
 
     @jit.ignore
     def loss(self, x, p, f):
