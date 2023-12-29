@@ -3,6 +3,6 @@ BERN*/
 FLOW*/
 NORM*/
 ANET*/
-__pycache__/*
+*/__pycache__/*
 *.pdf
 config.json
