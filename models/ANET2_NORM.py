@@ -35,8 +35,7 @@ class Model(nn.Module):
         prm_mu = p[:, :, 0]
         prm_sg = p[:, :, 1]
 
-        return prm_mu + torch.squeeze(m, dim = -1), self.sfp(prm_sg + torch.squeeze(s, dim = -1))
-        #return prm_mu, self.sfp(prm_sg)
+        return prm_mu, self.sfp(prm_sg)
 
     @jit.ignore
     def loss(self, x, p, f):

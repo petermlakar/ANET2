@@ -87,7 +87,7 @@ class Dataset(torch.utils.data.Dataset):
 
         return X[:t], self.P_batch[:t], self.Y_batch[:t], i
     
-    def __on_epoch_end__(self):
+    def shuffle(self):
         
         idx = np.random.permutation(self.n_samples)
 
@@ -111,7 +111,7 @@ def normalize(T, m, s):
 def denormalize(T, m, s):
     return T*s + m
 
-def load_training_dataset(path, MODEL_RESIDUALS = False):
+def load_training_dataset(path, residuals = False):
 
     X = xr.open_dataarray(join(path, "ESSD_benchmark_training_data_forecasts.nc"))
     Y = xr.open_dataarray(join(path, "ESSD_benchmark_training_data_observations.nc")).to_numpy()
@@ -120,16 +120,11 @@ def load_training_dataset(path, MODEL_RESIDUALS = False):
     stations = [str(x) for x in X.coords["station_name"].to_numpy()]
 
     P_alt_md = X.coords["model_altitude"].to_numpy().astype(np.float32)
-    P_lat_md = X.coords["model_latitude"].to_numpy().astype(np.float32)
-    P_lon_md = X.coords["model_longitude"].to_numpy().astype(np.float32)
-    P_lnd_md = X.coords["model_land_usage"].to_numpy().astype(np.float32)
-
     P_alt_st = X.coords["station_altitude"].to_numpy().astype(np.float32)
     P_lat_st = X.coords["station_latitude"].to_numpy().astype(np.float32)
     P_lon_st = X.coords["station_longitude"].to_numpy().astype(np.float32)
-    P_lnd_st = X.coords["station_land_usage"].to_numpy().astype(np.float32)
 
-    P = np.stack([P_alt_md, P_alt_st, P_lat_md, P_lat_st, P_lon_md, P_lon_st, P_lnd_md, P_lnd_st], axis = 1)
+    P = np.stack([P_alt_md, P_alt_st, P_lat_st, P_lon_st], axis = 1)
 
     X = np.squeeze(X.to_numpy())
 
@@ -190,7 +185,7 @@ def load_training_dataset(path, MODEL_RESIDUALS = False):
 
     P = (P - P_mean[None])/P_std[None]
 
-    if MODEL_RESIDUALS:
+    if residuals:
 
        tY = tY - tX.mean(axis = -1)
        vY = vY - vX.mean(axis = -1)
@@ -229,16 +224,11 @@ def load_test_dataset(path):
     stations = [str(x) for x in X.coords["station_name"].to_numpy()]
 
     P_alt_md = X.coords["model_altitude"].to_numpy().astype(np.float32)
-    P_lat_md = X.coords["model_latitude"].to_numpy().astype(np.float32)
-    P_lon_md = X.coords["model_longitude"].to_numpy().astype(np.float32)
-    P_lnd_md = X.coords["model_land_usage"].to_numpy().astype(np.float32)
-
     P_alt_st = X.coords["station_altitude"].to_numpy().astype(np.float32)
     P_lat_st = X.coords["station_latitude"].to_numpy().astype(np.float32)
     P_lon_st = X.coords["station_longitude"].to_numpy().astype(np.float32)
-    P_lnd_st = X.coords["station_land_usage"].to_numpy().astype(np.float32)
 
-    P = np.stack([P_alt_md, P_alt_st, P_lat_md, P_lat_st, P_lon_md, P_lon_st, P_lnd_md, P_lnd_st], axis = 1)
+    P = np.stack([P_alt_md, P_alt_st, P_lat_st, P_lon_st], axis = 1)
 
     X = np.squeeze(X.to_numpy())
 
@@ -251,7 +241,6 @@ def load_test_dataset(path):
     T = np.repeat(T, X.shape[0], axis = 0)
 
     return X, Y, P,\
-    np.array(time), np.array(stations),\
-    T
+    np.array(time), np.array(stations), T
 
 

@@ -40,7 +40,7 @@ match MODEL_TYPE:
         print(f"Invalid model type in config {MODEL_TYPE}...\nSupported types are: FLOW, NORM, BERN")
         exit()
 
-POSTFIX = ("_residuals" if RESIDUALS else "") + ("_" + cfg["training"]["postfix"] if cfg["training"]["postfix"] != "" else "")
+POSTFIX = ("_" + cfg["training"]["postfix"] if cfg["training"]["postfix"] != "" else "")
 
 #### Load training data, remove nan ####
 
@@ -78,15 +78,15 @@ if not exists(BASE_PATH):
 D_train = Dataset(bank_training,   bank_training.index,   batch_size = BATCH_SIZE, cuda = CUDA, train = True)
 D_valid = Dataset(bank_validation, bank_validation.index, batch_size = BATCH_SIZE, cuda = CUDA, train = False)
 
-D_train.__on_epoch_end__()
-D_valid.__on_epoch_end__()
+D_train.shuffle()
+D_valid.shuffle()
 
 print(f"Training: {D_train.index.shape}\nValidation: {D_valid.index.shape}")
 
 #########################################################
 
-# 8 covariate + 1 cosine time stamp
-M = Model(number_of_predictors = 8 + 1, lead_time = 21)
+# 4 covariates + 1 cosine time encoding
+M = Model(number_of_predictors = 4 + 1, lead_time = 21)
 M = M.cuda() if CUDA else M.cpu()
 
 opt = torch.optim.Adam(M.parameters(), lr = LEARNING_RATE, weight_decay = 1e-6)
@@ -127,7 +127,7 @@ for e in range(N_EPOCHS):
         if (i + 1) % 500 == 0:
             print(f"    Training loss {i + 1}/{len(D_train)}: {train_loss/c_train}")
 
-    D_train.__on_epoch_end__()
+    D_train.shuffle()
 
     #### Validate an epoch ####
     
@@ -149,7 +149,7 @@ for e in range(N_EPOCHS):
             if (i + 1) % 50 == 0:
                 print(f"    Validation loss {i + 1}/{len(D_valid)}: {valid_loss/c_valid}")
 
-    D_valid.__on_epoch_end__()
+    D_valid.shuffle()
 
     sch.step(valid_loss)
 
