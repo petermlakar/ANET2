@@ -233,14 +233,14 @@ class SplineBlock(nn.Module):
 
 class Model(nn.Module):
 
-    def __init__(self, number_of_predictors, lead_time):
+    def __init__(self, number_of_predictors, lead_time, number_of_stations):
 
         super().__init__()
 
         self.lead_time = lead_time
 
         self.sqrt2   = torch.sqrt(torch.tensor(2.0, dtype = torch.float32))
-        self.sqrt2pi = torch.sqrt(torch.tensor(2.0, dtype = torch.float32)*3.1415926535897932384626433)
+        self.sqrt2pi = torch.sqrt(torch.tensor(2.0, dtype = torch.float32)*np.pi)
         self.sfp = nn.Softplus()
     
         self.nblocks = 4
@@ -251,16 +251,16 @@ class Model(nn.Module):
         self.spline_block = SplineBlock()
 
         # Define parameter regression neural network for estimating the normalizing spline flow parameters (knot-value pairs)
-        self.parameter_regression = ANET2({"lead_time": lead_time, "number_of_predictors": number_of_predictors}, self.number_of_parameters*lead_time)
+        self.parameter_regression = ANET2({"lead_time": lead_time, "number_of_predictors": number_of_predictors}, self.number_of_parameters*lead_time, number_of_stations)
 
         self.lq = nn.Parameter(torch.unsqueeze(torch.unsqueeze(torch.arange(1.0/52.0, 1.0, step = 1.0/52.0), dim = 0), dim = 0), requires_grad = False)
 
-    def forward(self, x, p):
+    def forward(self, x, p, emb_idx):
 
         # x: [batch, lead, members]
         # p: [batch, predictors]
 
-        y = self.parameter_regression(x, p)
+        y = self.parameter_regression(x, p, emb_idx)
         
         p = y.view((y.shape[0], self.lead_time, self.nblocks, 2, self.nknots))
 
@@ -270,7 +270,7 @@ class Model(nn.Module):
         return prm_t, prm_y
 
     @jit.ignore
-    def loss(self, x, p, f):
+    def loss(self, x, p, f, emb_idx):
 
         # x: [batch, lead, member]
         # p: [batch, predictors]
@@ -281,7 +281,7 @@ class Model(nn.Module):
         if idx.sum() == 0:
             return None
 
-        prm_t, prm_y = self(x, p)
+        prm_t, prm_y = self(x, p, emb_idx)
 
         # Transform y into latent distribution
 
@@ -321,13 +321,13 @@ class Model(nn.Module):
         return (torch.pow(f, 2)*0.5 - dt).mean()
 
     @jit.export
-    def pdf(self, x, p, f):
+    def pdf(self, x, p, f, emb_idx):
         
         fs0 = f.shape[0]
         fs1 = f.shape[1]
 
         f = f.view((f.shape[0]*f.shape[1], 1, 1))
-        prm_t, prm_y = self(x, p)
+        prm_t, prm_y = self(x, p, emb_idx)
 
         dt = []
 
@@ -360,7 +360,7 @@ class Model(nn.Module):
   
 
     @jit.export
-    def nloglikelihood(self, x, p, f):
+    def nloglikelihood(self, x, p, f, emb_idx):
 
         # x: [batch, lead, member]
         # p: [batch, predictors]
@@ -369,7 +369,7 @@ class Model(nn.Module):
         fs1 = f.shape[1]
 
         f = f.view((f.shape[0]*f.shape[1], 1, 1))
-        prm_t, prm_y = self(x, p)
+        prm_t, prm_y = self(x, p, emb_idx)
 
         dt = []
 
@@ -410,13 +410,13 @@ class Model(nn.Module):
         return torch.nanmean(loss, dim = 0)
 
     @jit.export
-    def iF(self, x, p, f):
+    def iF(self, x, p, f, emb_idx):
 
         # x: [batch, lead, members]
         # p: [batch, predictors]
         # f: [batch, lead, quantiles]
 
-        prm_t, prm_y = self(x, p)
+        prm_t, prm_y = self(x, p, emb_idx)
         invf = torch.erfinv(2.0*f - 1.0)*self.sqrt2
 
         bs = x.shape[0]

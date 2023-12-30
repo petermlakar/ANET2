@@ -86,16 +86,16 @@ with torch.no_grad():
         if (i + 1) % 100 == 0:
             print(f"Inference: {i}/{len(D)}")
 
-        x, p, y, idx = D.__getitem__(i)
+        x, p, y, idx = D[i]
         qtmp = q.expand(y.shape[0], y.shape[1], -1)
 
-        f = M.iF(x, p, qtmp)
+        f = M.iF(x, p, qtmp, idx[0])
     
         if RESIDUALS:
-            P[idx[0, :], idx[1, :], :, :] = (f*Y_std + Y_mean + (x*X_std + X_mean).mean(axis = -1)[..., None]).detach().cpu().numpy()
+            P[idx[0], idx[1], :, :] = (f*Y_std + Y_mean + (x*X_std + X_mean).mean(axis = -1)[..., None]).detach().cpu().numpy()
 
         else:
-            P[idx[0, :], idx[1, :], :, :]  = f.detach().cpu().numpy()*X_std + X_mean
+            P[idx[0], idx[1], :, :]  = f.detach().cpu().numpy()*X_std + X_mean
 
     print(f"Execution time time: {timef() - start_time} seconds")
 

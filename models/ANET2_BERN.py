@@ -24,7 +24,7 @@ class SkipBlock(nn.Module):
 
 class Model(nn.Module):
 
-    def __init__(self, number_of_predictors, lead_time, positive_support = False, monotone = False):
+    def __init__(self, number_of_predictors, lead_time, number_of_stations, positive_support = False, monotone = False):
 
         super().__init__()
 
@@ -41,7 +41,7 @@ class Model(nn.Module):
         self.monotone = monotone
 
         # Bernstein quantile function coefficient regression neural network
-        self.parameter_regression = ANET2({"lead_time": lead_time, "number_of_predictors": number_of_predictors}, (self.degree + 1)*lead_time)
+        self.parameter_regression = ANET2({"lead_time": lead_time, "number_of_predictors": number_of_predictors}, (self.degree + 1)*lead_time, number_of_stations)
 
         ########################################################################
         # Compute binomial coefficients and the remaining required parameters
@@ -65,19 +65,19 @@ class Model(nn.Module):
         self.q    = nn.Parameter(self.q, requires_grad = False)
         self.q_pp = nn.Parameter(t0*t1*self.w, requires_grad = False)
 
-    def forward(self, x, p):
+    def forward(self, x, p, emb_idx):
 
         # x: [batch, lead, members]
         # p: [batch, predictors]
 
-        y = self.parameter_regression(x, p)
+        y = self.parameter_regression(x, p, emb_idx)
        
         return y.view((y.shape[0]*self.lead_time, 1, self.degree + 1))
 
     @jit.ignore
-    def loss(self, x, p, f):
+    def loss(self, x, p, f, emb_idx):
 
-        a = self(x, p)
+        a = self(x, p, emb_idx)
 
         # Enforce monotonicity by means of cumulative sum of positive increments
         if self.monotone:
@@ -134,9 +134,9 @@ class Model(nn.Module):
         return q.view((bs, lt, nq))
 
     @jit.export
-    def iF(self, x, p, f):
+    def iF(self, x, p, f, emb_idx):
         
-        a = self(x, p)
+        a = self(x, p, emb_idx)
 
         # Enforce monotonicity by means of cumulative sum of positive increments
         if self.monotone:

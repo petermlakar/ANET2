@@ -20,11 +20,11 @@ class SkipBlock(nn.Module):
 
 class ANET2(nn.Module):
 
-    def __init__(self, input_sizes, out_features):
+    def __init__(self, input_sizes, out_features, number_of_stations, number_of_embeddings = 2):
 
         super().__init__()
 
-        in_features = input_sizes["lead_time"]*2 + input_sizes["number_of_predictors"]
+        in_features = input_sizes["lead_time"]*2 + input_sizes["number_of_predictors"] + number_of_embeddings
 
         self.f = nn.Sequential(
 
@@ -41,7 +41,11 @@ class ANET2(nn.Module):
 
                 nn.Linear(128, out_features, dtype = torch.float32))
 
-    def forward(self, x, p):
+        self.e = nn.Parameter(torch.rand((number_of_stations, number_of_embeddings), requires_grad = True, dtype = torch.float32)*2.0 - 1.0)
+
+    def forward(self, x, p, i):
+
+        p = torch.cat([p, self.e[i]], dim = -1)
 
         m = x.mean(dim = -1, keepdim = True)
         s = x.std(dim = -1, keepdim = True)
