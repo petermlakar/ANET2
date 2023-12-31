@@ -31,7 +31,6 @@ LEAD_TIME = 21
 
 from models.ANET2 import ANET2
 
-
 match MODEL_TYPE:
     
     case "FLOW":
@@ -47,7 +46,6 @@ match MODEL_TYPE:
 
         print(f"Invalid model type in config {MODEL_TYPE}...\nSupported types are: FLOW, NORM, BERN")
         exit()
-
 
 model_regression = ANET2({"lead_time": LEAD_TIME, "number_of_predictors": 4 + 1}, model_distribution.number_of_outputs)
 
@@ -87,13 +85,13 @@ if not exists(BASE_PATH):
 
 #########################################################
 
-D_train = Dataset(bank_training,   bank_training.index,   batch_size = BATCH_SIZE, cuda = CUDA, train = True)
-D_valid = Dataset(bank_validation, bank_validation.index, batch_size = BATCH_SIZE, cuda = CUDA, train = False)
+dataset_train = Dataset(bank_training,   bank_training.index,   batch_size = BATCH_SIZE, cuda = CUDA, train = True)
+dataset_valid = Dataset(bank_validation, bank_validation.index, batch_size = BATCH_SIZE, cuda = CUDA, train = False)
 
-D_train.shuffle()
-D_valid.shuffle()
+dataset_train.shuffle()
+dataset_valid.shuffle()
 
-print(f"Training: {D_train.index.shape}\nValidation: {D_valid.index.shape}")
+print(f"Training: {dataset_train.index.shape}\nValidation: {dataset_valid.index.shape}")
 
 #########################################################
 
@@ -123,9 +121,9 @@ for e in range(N_EPOCHS):
 
     #### Train an epoch ####
     model_regression.train()
-    for i in range(len(D_train)):
+    for i in range(len(dataset_train)):
 
-        x, p, y, _ = D_train[i]
+        x, p, y, _ = dataset_train[i]
 
         parameters = model_regression(x, p)
         model_distribution.set_parameters(parameters)
@@ -142,7 +140,7 @@ for e in range(N_EPOCHS):
         c_train += 1
 
         if (i + 1) % 500 == 0:
-            print(f"    Training loss {i + 1}/{len(D_train)}: {train_loss/c_train}")
+            print(f"    Training loss {i + 1}/{len(dataset_train)}: {train_loss/c_train}")
 
 
     #### Validate an epoch ####
@@ -151,9 +149,9 @@ for e in range(N_EPOCHS):
     with torch.no_grad():
 
         valid_loss = 0.0
-        for i in range(len(D_valid)):
+        for i in range(len(dataset_valid)):
 
-            x, p, y, _ = D_valid[i]
+            x, p, y, _ = dataset_valid[i]
 
             parameters = model_regression(x, p)
             model_distribution.set_parameters(parameters)
@@ -166,10 +164,10 @@ for e in range(N_EPOCHS):
             c_valid += 1
 
             if (i + 1) % 50 == 0:
-                print(f"    Validation loss {i + 1}/{len(D_valid)}: {valid_loss/c_valid}")
+                print(f"    Validation loss {i + 1}/{len(dataset_valid)}: {valid_loss/c_valid}")
 
-    D_train.shuffle()
-    D_valid.shuffle()
+    dataset_train.shuffle()
+    dataset_valid.shuffle()
 
     #### Record best losses and save model
 
