@@ -219,7 +219,7 @@ data  = load_test_dataset(DATA_PATH)
 X, Y, P = data[:3]
 
 alt_m = P[:, 0]
-alt, lat, lon = P[:, 1], P[:, 3], P[:, 5]
+alt, lat, lon = P[:, 1], P[:, 2], P[:, 3]
 
 #########################################################
 

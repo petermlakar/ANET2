@@ -27,22 +27,32 @@ RESIDUALS = cfg["training"]["residuals"] == "True"
 
 #########################################################
 
+LEAD_TIME = 21
+
+from models.ANET2 import ANET2
+
 match MODEL_TYPE:
     
     case "FLOW":
-        from models.ANET2_FLOW import Model
+        from models.FLOW import Model
+        model_distribution = Model(LEAD_TIME)
     case "NORM":
-        from models.ANET2_NORM import Model
+        from models.NORM import Model
+        model_distribution = Model(LEAD_TIME)
     case "BERN":
-        from models.ANET2_BERN import Model
+        from models.BERN import Model
+        model_distribution = Model(LEAD_TIME)
     case _:
 
         print(f"Invalid model type in config {MODEL_TYPE}...\nSupported types are: FLOW, NORM, BERN")
         exit()
 
-POSTFIX = ("_residuals" if RESIDUALS else "") + ("_" + cfg["training"]["postfix"] if cfg["training"]["postfix"] != "" else "")
+model_regression = ANET2({"lead_time": LEAD_TIME, "number_of_predictors": 4 + 1}, model_distribution.number_of_outputs)
 
-#### Load training data, remove nan ####
+#########################################################
+# Load training data, remove nan
+
+POSTFIX = ("_" + cfg["training"]["postfix"] if cfg["training"]["postfix"] != "" else "")
 
 X, Y,\
 vX, vY,\
@@ -75,24 +85,27 @@ if not exists(BASE_PATH):
 
 #########################################################
 
-D_train = Dataset(bank_training,   bank_training.index,   batch_size = BATCH_SIZE, cuda = CUDA, train = True)
-D_valid = Dataset(bank_validation, bank_validation.index, batch_size = BATCH_SIZE, cuda = CUDA, train = False)
+dataset_train = Dataset(bank_training,   bank_training.index,   batch_size = BATCH_SIZE, cuda = CUDA, train = True)
+dataset_valid = Dataset(bank_validation, bank_validation.index, batch_size = BATCH_SIZE, cuda = CUDA, train = False)
 
-D_train.shuffle()
-D_valid.shuffle()
+dataset_train.shuffle()
+dataset_valid.shuffle()
 
-print(f"Training: {D_train.index.shape}\nValidation: {D_valid.index.shape}")
+print(f"Training: {dataset_train.index.shape}\nValidation: {dataset_valid.index.shape}")
 
 #########################################################
 
-# 8 covariate + 1 cosine time stamp
-M = Model(number_of_predictors = 4 + 1, lead_time = 21, number_of_stations = X.shape[0])
-M = M.cuda() if CUDA else M.cpu()
+if CUDA:
+    model_distribution = model_distribution.to("cuda:0")
+    model_regression   = model_regression.to("cuda:0")
 
-opt = torch.optim.Adam(M.parameters(), lr = LEARNING_RATE, weight_decay = 1e-6)
+#########################################################
+
+opt = torch.optim.Adam(model_regression.parameters(), lr = LEARNING_RATE, weight_decay = 1e-6)
 sch = ReduceLROnPlateau(opt, factor = 0.9, patience = 3)
 
-best_train_loss = None
+#########################################################
+
 best_valid_loss = None
 
 train_losses = np.zeros(N_EPOCHS, dtype = np.float32)
@@ -107,12 +120,14 @@ for e in range(N_EPOCHS):
     c_valid = 0
 
     #### Train an epoch ####
-    M.train()
-    for i in range(len(D_train)):
+    model_regression.train()
+    for i in range(len(dataset_train)):
 
-        x, p, y, emb_idx = D_train[i]
+        x, p, y, _ = dataset_train[i]
 
-        loss = M.loss(x, p, y, emb_idx[0])
+        parameters = model_regression(x, p)
+        model_distribution.set_parameters(parameters)
+        loss = model_distribution.loss(y)
 
         if loss is None:
             continue
@@ -125,20 +140,21 @@ for e in range(N_EPOCHS):
         c_train += 1
 
         if (i + 1) % 500 == 0:
-            print(f"    Training loss {i + 1}/{len(D_train)}: {train_loss/c_train}")
-
-    D_train.shuffle()
+            print(f"    Training loss {i + 1}/{len(dataset_train)}: {train_loss/c_train}")
 
     #### Validate an epoch ####
     
-    M.eval()
+    model_regression.eval()
     with torch.no_grad():
 
         valid_loss = 0.0
-        for i in range(len(D_valid)):
+        for i in range(len(dataset_valid)):
 
-            x, p, y, emb_idx = D_valid[i]
-            loss = M.loss(x, p, y, emb_idx[0]).item()
+            x, p, y, _ = dataset_valid[i]
+
+            parameters = model_regression(x, p)
+            model_distribution.set_parameters(parameters)
+            loss = model_distribution.loss(y).item()
 
             if loss is None:
                 continue
@@ -147,37 +163,33 @@ for e in range(N_EPOCHS):
             c_valid += 1
 
             if (i + 1) % 50 == 0:
-                print(f"    Validation loss {i + 1}/{len(D_valid)}: {valid_loss/c_valid}")
+                print(f"    Validation loss {i + 1}/{len(dataset_valid)}: {valid_loss/c_valid}")
 
-    D_valid.shuffle()
-
-    sch.step(valid_loss)
+    dataset_train.shuffle()
+    dataset_valid.shuffle()
 
     #### Record best losses and save model
 
     train_loss /= c_train
     valid_loss /= c_valid
 
+    sch.step(valid_loss)
+
     print(f"{e + 1}/{N_EPOCHS}: TLoss {train_loss} VLoss {valid_loss}")
 
     train_losses[e] = train_loss
     valid_losses[e] = valid_loss
-
-    if best_train_loss is None or train_loss < best_train_loss:
-        
-        best_train_loss = train_loss
-
-        jit.save(jit.script(M.cpu()), join(BASE_PATH, f"Model_train"))
-        if CUDA:
-            M.cuda()
-    
+   
     if best_valid_loss is None or valid_loss < best_valid_loss:
         
         best_valid_loss = valid_loss
 
-        jit.save(jit.script(M.cpu()), join(BASE_PATH, f"Model_valid"))
+        jit.save(jit.script(model_regression.cpu()),   join(BASE_PATH, f"model_regression"))
+        jit.save(jit.script(model_distribution.cpu()), join(BASE_PATH, f"model_distribution"))
+
         if CUDA:
-            M.cuda()
+            model_regression.to("cuda:0")
+            model_distribution.to("cuda:0")
 
     np.savetxt(join(BASE_PATH, f"Train_loss"), train_losses[0:e + 1])
     np.savetxt(join(BASE_PATH, f"Valid_loss"), valid_losses[0:e + 1])

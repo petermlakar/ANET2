@@ -225,7 +225,6 @@ def load_test_dataset(path):
     stations = [str(x) for x in X.coords["station_name"].to_numpy()]
 
     P_alt_md = X.coords["model_altitude"].to_numpy().astype(np.float32)
-
     P_alt_st = X.coords["station_altitude"].to_numpy().astype(np.float32)
     P_lat_st = X.coords["station_latitude"].to_numpy().astype(np.float32)
     P_lon_st = X.coords["station_longitude"].to_numpy().astype(np.float32)
@@ -243,7 +242,6 @@ def load_test_dataset(path):
     T = np.repeat(T, X.shape[0], axis = 0)
 
     return X, Y, P,\
-    np.array(time), np.array(stations),\
-    T
+    np.array(time), np.array(stations), T
 
 
