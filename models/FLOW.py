@@ -1,8 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.jit as jit
-
-from models.ANET2 import ANET2
+import numpy as np
 
 class SplineBlock(nn.Module):
 
@@ -233,14 +232,14 @@ class SplineBlock(nn.Module):
 
 class Model(nn.Module):
 
-    def __init__(self, number_of_predictors, lead_time):
+    def __init__(self, lead_time):
 
         super().__init__()
 
         self.lead_time = lead_time
 
         self.sqrt2   = torch.sqrt(torch.tensor(2.0, dtype = torch.float32))
-        self.sqrt2pi = torch.sqrt(torch.tensor(2.0, dtype = torch.float32)*3.1415926535897932384626433)
+        self.sqrt2pi = torch.sqrt(torch.tensor(2.0, dtype = torch.float32)*np.pi)
         self.sfp = nn.Softplus()
     
         self.nblocks = 4
@@ -251,83 +250,28 @@ class Model(nn.Module):
         self.spline_block = SplineBlock()
 
         # Define parameter regression neural network for estimating the normalizing spline flow parameters (knot-value pairs)
-        self.parameter_regression = ANET2({"lead_time": lead_time, "number_of_predictors": number_of_predictors}, self.number_of_parameters*lead_time)
+        self.number_of_outputs = self.number_of_parameters*self.lead_time 
 
         self.lq = nn.Parameter(torch.unsqueeze(torch.unsqueeze(torch.arange(1.0/52.0, 1.0, step = 1.0/52.0), dim = 0), dim = 0), requires_grad = False)
 
-    def forward(self, x, p):
-
-        # x: [batch, lead, members]
-        # p: [batch, predictors]
-
-        y = self.parameter_regression(x, p)
-        
-        p = y.view((y.shape[0], self.lead_time, self.nblocks, 2, self.nknots))
-
-        prm_t = torch.flatten(p[:, :, :, 0], start_dim = 0, end_dim = 1)
-        prm_y = torch.flatten(p[:, :, :, 1], start_dim = 0, end_dim = 1)
-
-        return prm_t, prm_y
-
-    @jit.ignore
-    def loss(self, x, p, f):
-
-        # x: [batch, lead, member]
-        # p: [batch, predictors]
-        # f: [batch, lead]
-        f = f.view((f.shape[0]*f.shape[1], 1, 1))
-        idx = torch.squeeze(torch.logical_not(torch.isnan(f)))
-
-        if idx.sum() == 0:
-            return None
-
-        prm_t, prm_y = self(x, p)
-
-        # Transform y into latent distribution
-
-        f = f[idx]
-
-        dt = 0.0
-
-        for i in range(self.nblocks):
-
-            t = torch.cumsum(torch.cat([torch.unsqueeze(prm_t[:, i, 0], dim = -1), 1e-3 + self.sfp(prm_t[:, i, 1:])], dim = -1), dim = -1)
-            y = torch.cumsum(torch.cat([torch.unsqueeze(prm_y[:, i, 0], dim = -1), 1e-3 + self.sfp(prm_y[:, i, 1:])], dim = -1), dim = -1)
-
-            h  = t[:, 1:] - t[:, :-1]
-            df = (y[:, 1:] - y[:, :-1])/h
-
-            di = df[:, :-1]*df[:, 1:]/((y[:, 2:] - y[:, :-2])/(t[:, 2:] - t[:, :-2]))
-            d1 = torch.unsqueeze(torch.pow(df[:, 0], 2)/((y[:, 2] - y[:, 0])/(t[:, 2] - t[:, 0])), dim = -1)
-            dn = torch.unsqueeze(torch.pow(df[:, -1], 2)/((y[:, -1] - y[:, -3])/(t[:, -1] - t[:, -3])), dim = -1)
-
-            d = torch.cat([d1, di, dn], dim = -1)
-
-            t = t[idx]
-            y = y[idx]
-            d = d[idx]
-
-            self.spline_block.set(torch.unsqueeze(t, dim = 1), torch.unsqueeze(y, dim = 1), torch.unsqueeze(d, dim = 1))
-
-            block_dt = self.spline_block.dt(f)
-            log_dt = torch.log(block_dt)
-
-            dt += log_dt
-            f  = self.spline_block(f)
-
-        f  = torch.squeeze(f)
-        dt = torch.squeeze(dt)
-
-        return (torch.pow(f, 2)*0.5 - dt).mean()
+    def forward(self):
+        return None
 
     @jit.export
-    def pdf(self, x, p, f):
+    def set_parameters(self, parameters):
+
+        parameters = parameters.view((parameters.shape[0], self.lead_time, self.nblocks, 2, self.nknots))
+
+        self.model_parameters = (torch.flatten(parameters[:, :, :, 0], start_dim = 0, end_dim = 1), torch.flatten(parameters[:, :, :, 1], start_dim = 0, end_dim = 1))
+
+    @jit.export
+    def pdf(self, f):
         
         fs0 = f.shape[0]
         fs1 = f.shape[1]
 
         f = f.view((f.shape[0]*f.shape[1], 1, 1))
-        prm_t, prm_y = self(x, p)
+        prm_t, prm_y = self.model_parameters
 
         dt = []
 
@@ -360,7 +304,7 @@ class Model(nn.Module):
   
 
     @jit.export
-    def nloglikelihood(self, x, p, f):
+    def nloglikelihood(self, f):
 
         # x: [batch, lead, member]
         # p: [batch, predictors]
@@ -369,7 +313,7 @@ class Model(nn.Module):
         fs1 = f.shape[1]
 
         f = f.view((f.shape[0]*f.shape[1], 1, 1))
-        prm_t, prm_y = self(x, p)
+        prm_t, prm_y = self.model_parameters
 
         dt = []
 
@@ -410,17 +354,17 @@ class Model(nn.Module):
         return torch.nanmean(loss, dim = 0)
 
     @jit.export
-    def iF(self, x, p, f):
+    def iF(self, f):
 
         # x: [batch, lead, members]
         # p: [batch, predictors]
         # f: [batch, lead, quantiles]
 
-        prm_t, prm_y = self(x, p)
+        prm_t, prm_y = self.model_parameters
         invf = torch.erfinv(2.0*f - 1.0)*self.sqrt2
 
-        bs = x.shape[0]
-        lt = x.shape[1] 
+        bs = f.shape[0]//self.lead_time
+        lt = self.lead_time
         nq = f.shape[-1]
 
         return self.backward(prm_t, prm_y, invf.view((bs*lt, nq, 1))).view((bs, lt, nq))
@@ -449,4 +393,56 @@ class Model(nn.Module):
             p = self.spline_block.backward(p)
 
         return p
+
+    @jit.ignore
+    def loss(self, f):
+
+        # x: [batch, lead, member]
+        # p: [batch, predictors]
+        # f: [batch, lead]
+        f = f.view((f.shape[0]*f.shape[1], 1, 1))
+        idx = torch.squeeze(torch.logical_not(torch.isnan(f)))
+
+        if idx.sum() == 0:
+            return None
+
+        prm_t, prm_y = self.model_parameters
+
+        # Transform y into latent distribution
+
+        f = f[idx]
+
+        dt = 0.0
+
+        for i in range(self.nblocks):
+
+            t = torch.cumsum(torch.cat([torch.unsqueeze(prm_t[:, i, 0], dim = -1), 1e-3 + self.sfp(prm_t[:, i, 1:])], dim = -1), dim = -1)
+            y = torch.cumsum(torch.cat([torch.unsqueeze(prm_y[:, i, 0], dim = -1), 1e-3 + self.sfp(prm_y[:, i, 1:])], dim = -1), dim = -1)
+
+            h  = t[:, 1:] - t[:, :-1]
+            df = (y[:, 1:] - y[:, :-1])/h
+
+            di = df[:, :-1]*df[:, 1:]/((y[:, 2:] - y[:, :-2])/(t[:, 2:] - t[:, :-2]))
+            d1 = torch.unsqueeze(torch.pow(df[:, 0], 2)/((y[:, 2] - y[:, 0])/(t[:, 2] - t[:, 0])), dim = -1)
+            dn = torch.unsqueeze(torch.pow(df[:, -1], 2)/((y[:, -1] - y[:, -3])/(t[:, -1] - t[:, -3])), dim = -1)
+
+            d = torch.cat([d1, di, dn], dim = -1)
+
+            t = t[idx]
+            y = y[idx]
+            d = d[idx]
+
+            self.spline_block.set(torch.unsqueeze(t, dim = 1), torch.unsqueeze(y, dim = 1), torch.unsqueeze(d, dim = 1))
+
+            block_dt = self.spline_block.dt(f)
+            log_dt = torch.log(block_dt)
+
+            dt += log_dt
+            f  = self.spline_block(f)
+
+        f  = torch.squeeze(f)
+        dt = torch.squeeze(dt)
+
+        return (torch.pow(f, 2)*0.5 - dt).mean()
+
 

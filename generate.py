@@ -26,9 +26,11 @@ MODEL_PATH  = cfg["generate"]["modelPath"]
 DATA_PATH = cfg["dataPath"]
 RESIDUALS = cfg["generate"]["residuals"] == "True"
 
-print(RESIDUALS)
+if not exists(OUTPUT_PATH):
+    mkdir(OUTPUT_PATH)
 
-#### Load training data, remove nan ####
+#########################################################
+# Load training data, remove nan 
 
 _, _,\
 _, _,\
@@ -37,7 +39,7 @@ X_mean, X_std,\
 Y_mean, Y_std,\
 P_mean, P_std,\
 _, _,\
-_, _ = load_training_dataset(DATA_PATH, MODEL_RESIDUALS = RESIDUALS)
+_, _ = load_training_dataset(DATA_PATH, residuals = RESIDUALS)
 
 X, Y, P,\
 time, stations,\
@@ -51,17 +53,22 @@ P = normalize(P, P_mean, P_std)
 
 BATCH_SIZE = 512
 
-if not exists(OUTPUT_PATH):
-    mkdir(OUTPUT_PATH)
+bank = Databank(X, Y, P, valid_time, cuda = CUDA)
+
+dataset = Dataset(bank, bank.index, batch_size = BATCH_SIZE, train = False, cuda = CUDA)
 
 #########################################################
 
-bank = Databank(X, Y, P, valid_time, cuda = CUDA)
+model_regression   = torch.jit.load(join(MODEL_PATH, "model_regression"))
+model_distribution = torch.jit.load(join(MODEL_PATH, "model_distribution"))
 
-D = Dataset(bank, bank.index, batch_size = BATCH_SIZE, train = False, cuda = CUDA)
-M = torch.jit.load(MODEL_PATH)
-M = M.cuda() if CUDA else M.cpu()
-M.eval()
+if CUDA:
+    model_regression   = model_regression.to("cuda:0")
+    model_distribution = model_distribution.to("cuda:0")
+
+model_regression.eval()
+
+#########################################################
 
 nbins = 51
 
@@ -75,21 +82,23 @@ q = q.cuda() if CUDA else q
 
 print(f"Number of quantiles: {q.shape}")
 
-##################################
+#########################################################
 
 with torch.no_grad():
     
     start_time = timef()
 
-    for i in range(len(D)):
+    for i in range(len(dataset)):
 
         if (i + 1) % 100 == 0:
-            print(f"Inference: {i}/{len(D)}")
+            print(f"Inference: {i}/{len(dataset)}")
 
-        x, p, y, idx = D.__getitem__(i)
+        x, p, y, idx = dataset[i]
         qtmp = q.expand(y.shape[0], y.shape[1], -1)
 
-        f = M.iF(x, p, qtmp)
+        model_distribution.set_parameters(model_regression(x, p))
+
+        f = model_distribution.iF(qtmp)
     
         if RESIDUALS:
             P[idx[0, :], idx[1, :], :, :] = (f*Y_std + Y_mean + (x*X_std + X_mean).mean(axis = -1)[..., None]).detach().cpu().numpy()
