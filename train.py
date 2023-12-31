@@ -123,9 +123,9 @@ for e in range(N_EPOCHS):
     model_regression.train()
     for i in range(len(dataset_train)):
 
-        x, p, y, _ = dataset_train[i]
+        x, p, y, j = dataset_train[i]
 
-        parameters = model_regression(x, p)
+        parameters = model_regression(x, p, j[0])
         model_distribution.set_parameters(parameters)
         loss = model_distribution.loss(y)
 
@@ -150,9 +150,9 @@ for e in range(N_EPOCHS):
         valid_loss = 0.0
         for i in range(len(dataset_valid)):
 
-            x, p, y, _ = dataset_valid[i]
+            x, p, y, j = dataset_valid[i]
 
-            parameters = model_regression(x, p)
+            parameters = model_regression(x, p, j[0])
             model_distribution.set_parameters(parameters)
             loss = model_distribution.loss(y).item()
 
