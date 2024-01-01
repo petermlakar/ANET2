@@ -101,7 +101,7 @@ with torch.no_grad():
         f = model_distribution.iF(qtmp)
     
         if RESIDUALS:
-            P[idx[0, :], idx[1, :], :, :] = (f*Y_std + Y_mean + (x*X_std + X_mean).mean(axis = -1)[..., None]).detach().cpu().numpy()
+            P[idx[0, :], idx[1, :], :, :] = (f*Y_std + (x*X_std + X_mean).mean(axis = -1)[..., None]).detach().cpu().numpy()
 
         else:
             P[idx[0, :], idx[1, :], :, :]  = f.detach().cpu().numpy()*X_std + X_mean

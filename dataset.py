@@ -187,14 +187,14 @@ def load_training_dataset(path, residuals = False):
 
     if residuals:
 
-       tY = tY - tX.mean(axis = -1)
-       vY = vY - vX.mean(axis = -1)
+        tY = tY - tX.mean(axis = -1)
+        vY = vY - vX.mean(axis = -1)
 
-       tX, tX_mean, tX_std = norm(tX)
-       tY, tY_mean, tY_std = norm(tY, remove_nan = True)
+        tX, tX_mean, tX_std = norm(tX)
+        tY = tY/tX_std
 
-       vX = (vX - tX_mean)/tX_std
-       vY = (vY - tY_mean)/tY_std
+        vX = (vX - tX_mean)/tX_std
+        vY = vY/tX_std
 
     else:
 
@@ -204,13 +204,11 @@ def load_training_dataset(path, residuals = False):
         vX = (vX - tX_mean)/tX_std
         vY = (vY - tX_mean)/tX_std
 
-        tY_mean, tY_std = (tX_mean, tX_std)
-
     return tX, tY,\
     vX, vY,\
     P, \
     tX_mean, tX_std,\
-    tY_mean, tY_std,\
+    tX_mean, tX_std,\
     P_mean[None], P_std[None],\
     time, np.array(stations),\
     time_train, time_valid
