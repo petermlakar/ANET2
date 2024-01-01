@@ -12,6 +12,8 @@ from dataset import Databank, Dataset, norm, normalize, load_training_dataset, d
 
 import json
 
+from time import time
+
 #########################################################
 
 CUDA = torch.cuda.is_available()
@@ -119,15 +121,23 @@ for e in range(N_EPOCHS):
     c_train = 0
     c_valid = 0
 
+    #time_regression   = 0.0
+    #time_distribution = 0.0
+
     #### Train an epoch ####
     model_regression.train()
     for i in range(len(dataset_train)):
 
         x, p, y, _ = dataset_train[i]
 
+        #t0 = time()
         parameters = model_regression(x, p)
+        #time_regression += time() - t0
+
+        #t0 = time()
         model_distribution.set_parameters(parameters)
         loss = model_distribution.loss(y)
+        #time_distribution += time() - t0
 
         if loss is None:
             continue
@@ -141,7 +151,7 @@ for e in range(N_EPOCHS):
 
         if (i + 1) % 500 == 0:
             print(f"    Training loss {i + 1}/{len(dataset_train)}: {train_loss/c_train}")
-
+            #print(f"    Execution time: reg -> {time_regression/c_train} dis -> {time_distribution/c_train}")
 
     #### Validate an epoch ####
     
