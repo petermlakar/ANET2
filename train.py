@@ -30,6 +30,7 @@ RESIDUALS = cfg["training"]["residuals"] == "True"
 #########################################################
 
 LEAD_TIME = 21
+NUMBER_OF_STATIONS = 229
 
 from models.ANET2 import ANET2
 
@@ -49,7 +50,7 @@ match MODEL_TYPE:
         print(f"Invalid model type in config {MODEL_TYPE}...\nSupported types are: FLOW, NORM, BERN")
         exit()
 
-model_regression = ANET2({"lead_time": LEAD_TIME, "number_of_predictors": 4 + 1}, model_distribution.number_of_outputs)
+model_regression = ANET2({"lead_time": LEAD_TIME, "number_of_predictors": 4 + 1}, model_distribution.number_of_outputs, NUMBER_OF_STATIONS)
 
 #########################################################
 # Load training data, remove nan
