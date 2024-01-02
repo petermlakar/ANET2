@@ -12,6 +12,8 @@ from dataset import Databank, Dataset, norm, normalize, load_training_dataset, d
 
 import json
 
+from time import time
+
 #########################################################
 
 CUDA = torch.cuda.is_available()

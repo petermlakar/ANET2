@@ -93,15 +93,14 @@ with torch.no_grad():
         if (i + 1) % 100 == 0:
             print(f"Inference: {i}/{len(dataset)}")
 
-        x, p, y, idx = dataset[i]
+        x, p, y, j = dataset[i]
         qtmp = q.expand(y.shape[0], y.shape[1], -1)
 
-        model_distribution.set_parameters(model_regression(x, p))
+        model_distribution.set_parameters(model_regression(x, p, j[0]))
         f = model_distribution.iF(qtmp)
     
         if RESIDUALS:
-            P[idx[0], idx[1], :, :] = (f*Y_std + Y_mean + (x*X_std + X_mean).mean(axis = -1)[..., None]).detach().cpu().numpy()
-
+            P[idx[0, :], idx[1, :], :, :] = (f*Y_std + (x*X_std + X_mean).mean(axis = -1)[..., None]).detach().cpu().numpy()
         else:
             P[idx[0], idx[1], :, :]  = f.detach().cpu().numpy()*X_std + X_mean
 

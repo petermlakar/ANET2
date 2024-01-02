@@ -1,4 +1,6 @@
 *.nc
+*.out
+*.sh
 
 BERN*/
 FLOW*/
