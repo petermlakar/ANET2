@@ -24,26 +24,30 @@
 	},
 
 	"evaluation":	
-	[
-		{
-			"path": "",
-			"name": "EMOS",
-			"type": "EMOS"
-		},
-		{
-			"path": "",
-			"name": "BERN",
-			"type": "ANET2"
-		},
-		{
-			"path": "",
-			"name": "FLOW",
-			"type": "ANET2"
-		},
-		{
-			"path": "",
-			"name": "NORM",
-			"type": "ANET2"
-		}
-	]
+	{
+		"models":
+		[
+			{
+				"path": "",
+				"name": "EMOS",
+				"type": "EMOS"
+			},
+			{
+				"path": "",
+				"name": "BERN",
+				"type": "ANET2"
+			},
+			{
+				"path": "",
+				"name": "FLOW",
+				"type": "ANET2"
+			},
+			{
+				"path": "",
+				"name": "NORM",
+				"type": "ANET2"
+			}
+		],
+		"outputPath": "/home/peter/Documents/Doktorat/ANET2Evaluation/"
+	}
 }
