@@ -273,6 +273,8 @@ colors = [
         (88.0/255.0, 123.0/255.0, 183.0/255.0),
         (102.0/255.0, 153.0/255.0, 102.0/255.0)]
 
+markers = ["o", "v", "^", "h", "X", "D"]
+
 if PLOT_PIT:
 
     pit_max = 0.0
@@ -393,7 +395,7 @@ if PLOT_CRPS_PER_STATION:
 
         idx = crps_per_station_idx == i
 
-        a.scatter(x = lon[idx], y = lat[idx], color = colors[i], s = 40, alpha = 0.8, transform = ccrs.PlateCarree(), label = f"{MODELS[i].get_name()}: {idx.sum()} cases")
+        a.scatter(x = lon[idx], y = lat[idx], color = colors[i], s = 40, alpha = 0.8, transform = ccrs.PlateCarree(), label = f"{MODELS[i].get_name()}: {idx.sum()} cases", marker = markers[i])
 
     a.legend(fancybox = True, framealpha = 0.5, markerscale = 2)
 
