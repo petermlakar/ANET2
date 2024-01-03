@@ -257,12 +257,12 @@ for i, model in enumerate(MODELS):
 
 #########################################################
 
-PLOT_PIT  = False
-PLOT_CRPS = False
-PLOT_BIAS = False
-PLOT_CRPS_PER_STATION = False
-PLOT_QSS = False
-PLOT_QSS_ALT = False
+PLOT_PIT  = True
+PLOT_CRPS = True
+PLOT_BIAS = True
+PLOT_CRPS_PER_STATION = True
+PLOT_QSS = True
+PLOT_QSS_ALT = True
 PLOT_CSS_ALT = True
 
 #########################################################
