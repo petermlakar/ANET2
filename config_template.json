@@ -15,6 +15,13 @@
 		"residuals": "True"
 	},
 
+	"generateMulti":
+	{
+		"modelsPath": "",
+		"outputPath": "",
+		"residuals": "True"
+	},
+
 	"evaluation":	
 	[
 		{
