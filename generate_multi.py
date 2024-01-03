@@ -22,12 +22,16 @@ CFG_PATH = "" if len(sys.argv) == 1 else sys.argv[1]
 cfg = json.load(open(join(CFG_PATH, "config.json")))
 
 OUTPUT_PATH = cfg["generateMulti"]["outputPath"] 
-MODELS_PATH  = cfg["generateMulti"]["modelsPath"]
+MODELS_PATH = cfg["generateMulti"]["modelsPath"]
+BEST_MODEL_ONLY = cfg["generateMulti"]["useBestModelOnly"] == "True"
+
 DATA_PATH = cfg["dataPath"]
 RESIDUALS = cfg["generate"]["residuals"] == "True"
 
 if not exists(OUTPUT_PATH):
     mkdir(OUTPUT_PATH)
+
+print("Generating predictions with model:", MODELS_PATH.split("/")[-1])
 
 #########################################################
 # Load training data, remove nan 
@@ -59,21 +63,32 @@ dataset = Dataset(bank, bank.index, batch_size = BATCH_SIZE, train = False, cuda
 
 #########################################################
 
+models_losses = []
 models_regression  = []
 model_distribution = None
 
 for m in listdir(MODELS_PATH):
 
     models_regression.append(torch.jit.load(join(MODELS_PATH, m, "model_regression")))
-    model_distribution = model_distribution if model_distribution is not None else torch.jit.load(MODELS_PATH, m, "model_distribution")
+    models_losses.append(np.loadtxt(join(MODELS_PATH, m, "Valid_loss")).min())
+    model_distribution = model_distribution if model_distribution is not None else torch.jit.load(join(MODELS_PATH, m, "model_distribution"))
 
     if CUDA:
         models_regression[-1] = models_regression[-1].to("cuda:0")
 
-    model_regression[-1].eval()
+    models_regression[-1].eval()
 
 if CUDA:
     model_distribution = model_distribution.to("cuda:0")
+
+if BEST_MODEL_ONLY:
+
+    i = np.where(np.array(models_losses) == np.array(models_losses).min())[0][0]
+
+    models_regression = [models_regression[i]]
+    models_losses = models_losses[i]
+
+    print(f"Best only mode: loss -> {models_losses}")
 
 #########################################################
 
@@ -107,7 +122,7 @@ with torch.no_grad():
 
         for model in models_regression:
 
-            model_parameters = model(x, p, j[0])
+            model_parameters = model(x, p)
             parameters = model_parameters if parameters is None else parameters + model_parameters
 
         parameters /= len(models_regression)
@@ -116,9 +131,9 @@ with torch.no_grad():
         f = model_distribution.iF(qtmp)
     
         if RESIDUALS:
-            P[idx[0, :], idx[1, :], :, :] = (f*Y_std + (x*X_std + X_mean).mean(axis = -1)[..., None]).detach().cpu().numpy()
+            P[j[0, :], j[1, :], :, :] = (f*Y_std + (x*X_std + X_mean).mean(axis = -1)[..., None]).detach().cpu().numpy()
         else:
-            P[idx[0], idx[1], :, :]  = f.detach().cpu().numpy()*X_std + X_mean
+            P[j[0], j[1], :, :]  = f.detach().cpu().numpy()*X_std + X_mean
 
     print(f"Execution time time: {timef() - start_time} seconds")
 

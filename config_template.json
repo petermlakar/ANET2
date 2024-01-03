@@ -19,7 +19,8 @@
 	{
 		"modelsPath": "",
 		"outputPath": "",
-		"residuals": "True"
+		"residuals": "False",
+		"useBestModelOnly": "False"
 	},
 
 	"evaluation":	

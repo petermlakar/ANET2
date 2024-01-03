@@ -363,7 +363,7 @@ class Model(nn.Module):
         prm_t, prm_y = self.model_parameters
         invf = torch.erfinv(2.0*f - 1.0)*self.sqrt2
 
-        bs = f.shape[0]//self.lead_time
+        bs = f.shape[0]
         lt = self.lead_time
         nq = f.shape[-1]
 

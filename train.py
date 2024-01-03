@@ -121,23 +121,15 @@ for e in range(N_EPOCHS):
     c_train = 0
     c_valid = 0
 
-    #time_regression   = 0.0
-    #time_distribution = 0.0
-
     #### Train an epoch ####
     model_regression.train()
     for i in range(len(dataset_train)):
 
         x, p, y, _ = dataset_train[i]
 
-        #t0 = time()
         parameters = model_regression(x, p)
-        #time_regression += time() - t0
-
-        #t0 = time()
         model_distribution.set_parameters(parameters)
         loss = model_distribution.loss(y)
-        #time_distribution += time() - t0
 
         if loss is None:
             continue
