@@ -1,6 +1,7 @@
 import xarray as xr
 import numpy as np
 from scipy.special import erf
+from scipy.signal import medfilt
 
 from functools import reduce
 
@@ -95,13 +96,13 @@ class EvaluationMetrics(ABC):
         ql = y - q
 
         t = np.arange(1.0/(q.shape[-1] + 1), 1.0, step = 1.0/(q.shape[-1] + 1)).reshape((1, 1, 1, ql.shape[-1]))
+        t = np.tile(t, (ql.shape[0], ql.shape[1], ql.shape[2], 1))
 
-        t = np.repeat(t, ql.shape[0], axis = 0)
-        t = np.repeat(t, ql.shape[1], axis = 1)
-        t = np.repeat(t, ql.shape[2], axis = 2)
-
-        ql[ql <  0] *= (t[ql <  0] - 1.0)
-        ql[ql >= 0] *= t[ql >= 0]
+        i0 = ql <  0.0
+        i1 = ql >= 0.0
+        
+        ql[i0] *= t[i0] - 1.0
+        ql[i1] *= t[i1]
 
         return ql
 
@@ -126,6 +127,19 @@ class EvaluationMetrics(ABC):
         return np.nanmean((x - y), axis = (0, 1))
 
 #########################################################
+
+class RawEnsemble(EvaluationMetrics):
+
+    def __init__(self, x):
+        super().__init__("", "Raw ensemble")
+
+        self.x = x
+
+    def load(self):
+        pass
+
+    def get_forecast_median(self):
+        return np.median(x, axis = -1)
 
 class ANET2(EvaluationMetrics):
 
@@ -211,7 +225,8 @@ CFG_PATH = "" if len(sys.argv) == 1 else sys.argv[1]
 cfg = json.load(open(join(CFG_PATH, "config.json")))
 
 DATA_PATH = cfg["dataPath"]
-MODELS = cfg["evaluation"]
+MODELS      = cfg["evaluation"]["models"]
+OUTPUT_PATH = cfg["evaluation"]["outputPath"] 
 
 #########################################################
 
@@ -245,6 +260,10 @@ for i, model in enumerate(MODELS):
 PLOT_PIT  = True
 PLOT_CRPS = True
 PLOT_BIAS = True
+PLOT_CRPS_PER_STATION = True
+PLOT_QSS = True
+PLOT_QSS_ALT = True
+PLOT_CSS_ALT = True
 
 #########################################################
 
@@ -253,6 +272,8 @@ colors = [
         (206.0/255.0, 91.0/255.0, 91.0/255.0),
         (88.0/255.0, 123.0/255.0, 183.0/255.0),
         (102.0/255.0, 153.0/255.0, 102.0/255.0)]
+
+markers = ["o", "v", "^", "h", "X", "D"]
 
 if PLOT_PIT:
 
@@ -286,7 +307,7 @@ if PLOT_PIT:
         pit_plots[i][1].set_aspect((pit_plots[i][1].get_xlim()[1] - pit_plots[i][1].get_xlim()[0])/(pit_plots[i][1].get_ylim()[1] - pit_plots[i][1].get_ylim()[0]))
 
         pit_plots[i][0].tight_layout()
-        pit_plots[i][0].savefig(f"PIT_{MODELS[i].get_name()}.pdf", bbox_inches = "tight", format = "pdf")
+        pit_plots[i][0].savefig(join(OUTPUT_PATH, f"PIT_{MODELS[i].get_name()}.pdf"), bbox_inches = "tight", format = "pdf")
         plt.close(pit_plots[i][0])
 
 #########################################################
@@ -302,17 +323,15 @@ if PLOT_CRPS:
         a.plot(np.nanmean(c, axis = (0, 1)), linewidth = 4, label = MODELS[i].get_name(), color = colors[i])
 
         a.set_xlabel("Lead time [6 hours]")
-        a.set_ylabel("CRPS")
+        a.set_ylabel("CRPS [K]")
 
     a.grid()
     a.legend()
     a.set_aspect((a.get_xlim()[1] - a.get_xlim()[0])/(a.get_ylim()[1] - a.get_ylim()[0]))
 
     f.tight_layout()
-    f.savefig("CRPS.pdf", bbox_inches = "tight", format = "pdf")
+    f.savefig(join(OUTPUT_PATH, "CRPS.pdf"), bbox_inches = "tight", format = "pdf")
     plt.close(f)
-
-exit()
 
 #########################################################
 
@@ -333,155 +352,165 @@ if PLOT_BIAS:
     a.set_aspect((a.get_xlim()[1] - a.get_xlim()[0])/(a.get_ylim()[1] - a.get_ylim()[0]))
 
     f.tight_layout()
-    f.savefig("BIAS.pdf", bbox_inches = "tight", format = "pdf")
+    f.savefig(join(OUTPUT_PATH, "BIAS.pdf"), bbox_inches = "tight", format = "pdf")
     plt.close(f)
 
-exit()
+#########################################################
 
-##############################
+if PLOT_CRPS_PER_STATION:
 
-font = {"size"   : 24}    
-matplotlib.rc("font", **font)
+    font = {"size"   : 24}    
+    matplotlib.rc("font", **font)
 
-import cartopy.crs as ccrs
-import cartopy
+    import cartopy.crs as ccrs
+    import cartopy
 
-f, a = plt.subplots(1, figsize = (10, 10), dpi = 300, subplot_kw = {"projection": ccrs.PlateCarree()})
+    f, a = plt.subplots(1, figsize = (10, 10), dpi = 300, subplot_kw = {"projection": ccrs.PlateCarree()})
 
-a.add_feature(cartopy.feature.LAND,    edgecolor = "black", facecolor = (245.0/255.0, 249.0/255.0, 245.0/255.0))
-a.add_feature(cartopy.feature.OCEAN,   edgecolor = "black", facecolor = (181.0/255.0, 201.0/255.0, 225.0/255.0))
-a.add_feature(cartopy.feature.LAKES,   edgecolor = "black")
-a.add_feature(cartopy.feature.BORDERS, edgecolor = "black")
+    a.add_feature(cartopy.feature.LAND,    edgecolor = "black", facecolor = (245.0/255.0, 249.0/255.0, 245.0/255.0))
+    a.add_feature(cartopy.feature.OCEAN,   edgecolor = "black", facecolor = (181.0/255.0, 201.0/255.0, 225.0/255.0))
+    a.add_feature(cartopy.feature.LAKES,   edgecolor = "black")
+    a.add_feature(cartopy.feature.BORDERS, edgecolor = "black")
 
-a.set_extent([2.5, 10.5, 45.75, 53.5])
-a.coastlines()
+    a.set_extent([2.5, 10.5, 45.75, 53.5])
+    a.coastlines()
 
-crps_per_station_idx  = np.zeros(lat.shape[1], dtype = np.int32)
-crps_per_station_best = np.zeros(lat.shape[1], dtype = np.float32) 
+    crps_per_station_idx  = np.zeros(lat.shape[0], dtype = np.int32)
+    crps_per_station_best = np.zeros(lat.shape[0], dtype = np.float32) 
 
-for i, c in enumerate(crps):
+    for i, c in enumerate(crps):
 
-    if i == 0:
-        crps_per_station_idx[:] = i
-        crps_per_station_best[:] = np.nanmean(c, axis = (1, 2))
-    else:
-        crps_now = np.nanmean(c, axis = (1, 2))
+        if i == 0:
+            crps_per_station_idx[:] = i
+            crps_per_station_best[:] = np.nanmean(c, axis = (1, 2))
+        else:
+            crps_now = np.nanmean(c, axis = (1, 2))
 
-        idx_now = crps_per_station_best > crps_now
+            idx_now = crps_per_station_best > crps_now
 
-        crps_per_station_idx[idx_now] = i
-        crps_per_station_best[idx_now] = crps_now[idx_now]
+            crps_per_station_idx[idx_now] = i
+            crps_per_station_best[idx_now] = crps_now[idx_now]
 
-for i in np.unique(crps_per_station_idx):
+    for i in np.unique(crps_per_station_idx):
 
-    idx = crps_per_station_idx == i
+        idx = crps_per_station_idx == i
 
-    a.scatter(x = lon[0, idx], y = lat[0, idx], color = colors[i], s = 40, alpha = 0.8, transform = ccrs.PlateCarree(), label = f"{models[i].get_name()}: {idx.sum()} cases")
+        a.scatter(x = lon[idx], y = lat[idx], color = colors[i], s = 40, alpha = 0.8, transform = ccrs.PlateCarree(), label = f"{MODELS[i].get_name()}: {idx.sum()} cases", marker = markers[i])
 
-a.legend(fancybox = True, framealpha = 0.5, markerscale = 2)
+    a.legend(fancybox = True, framealpha = 0.5, markerscale = 2)
 
-f.savefig("crps_per_station.png", bbox_inches = "tight")
+    f.savefig(join(OUTPUT_PATH, "crps_per_station.png"), bbox_inches = "tight")
 
-plt.close(f)
+    plt.close(f)
 
-##############################
+#########################################################
 
-font = {"size"   : 30}
-matplotlib.rc("font", **font)
+if PLOT_QSS:
 
-f, a = plt.subplots(1, figsize = (10, 10), dpi = 300)
-
-q_base = np.nanmean(qloss[-1], axis = (0, 1, 2))
-quantile_levels = np.arange(1.0/(q_base.size + 1), 1.0, step = 1.0/(q_base.size + 1))
-
-for i, q in enumerate(qloss):
-    if i < len(qloss) - 1:
-        a.plot(quantile_levels, (1.0 - np.nanmean(q, axis = (0, 1, 2))/q_base)*100.0, color = colors[i], label = models[i].get_name(), linewidth = 5)
-    else:
-        a.plot(quantile_levels, (1.0 - np.nanmean(q, axis = (0, 1, 2))/q_base)*100.0, color = colors[i], label = models[i].get_name(), linewidth = 5, linestyle = "dashed")
-
-a.set_aspect((a.get_xlim()[1] - a.get_xlim()[0])/(a.get_ylim()[1] - a.get_ylim()[0]))
-a.grid()
-#a.legend()
-
-a.set_xlabel("Quantile level")
-a.set_ylabel("QSS [percentage]")
-
-f.tight_layout()
-f.savefig("qss.pdf", bbox_inches = "tight", format = "pdf")
-plt.close(f)
-
-##############################
-
-font = {"size": 30}
-matplotlib.rc("font", **font)
-
-print(f"{alt.min()} {alt.max()}")
-
-q_base = np.nanmean(qloss[-1], axis = (1, 2))
-
-for (min_alt, max_alt) in [(-5, 800), (800, 2000), (2000, 3600)]:
-
-    idx = np.logical_and(alt >= min_alt, alt < max_alt)[0, :]
-
-    q_base_alt = q_base[idx, :].mean(axis = 0)
+    font = {"size": 30} 
+    matplotlib.rc("font", **font)
 
     f, a = plt.subplots(1, figsize = (10, 10), dpi = 300)
-    a.set_ylim(-1.0, 21.0)
-    a.grid()
 
-    if max_alt < 3600:
-        a.set_title(f"{idx.sum()} stations\nAltitude in ({min_alt}, {max_alt}] meters")
-    else:
-        a.set_title(f"{idx.sum()} stations\nAltitude in ({min_alt}, {max_alt}) meters")
+    qloss_reference = np.reshape(qloss[0], (np.prod(qloss[0].shape[:-1]), qloss[0].shape[-1]))
+    qloss_reference = np.nanmean(qloss_reference, axis = 0)
+
+    quantile_levels = np.arange(1.0/(qloss_reference.shape[-1] + 1), 1.0, step = 1.0/(qloss_reference.shape[-1] + 1))
 
     for i, q in enumerate(qloss):
-        q_local = np.nanmean(q, axis = (1, 2))[idx, :].mean(axis = 0)
+    
+        q = np.reshape(q, (np.prod(q.shape[:-1]), q.shape[-1]))
+        q = np.nanmean(q, axis = 0)
 
-        if i < len(qloss) - 1:
-            a.plot(quantile_levels, 100.0*(1.0 - q_local/q_base_alt), color = colors[i], linewidth = 5, label = models[i].get_name())
-        else:
-            a.plot(quantile_levels, 100.0*(1.0 - q_local/q_base_alt), color = colors[i], linewidth = 5, linestyle = "dashed", label = models[i].get_name())
+        v = (1.0 - q/qloss_reference)*100.0
+
+        a.plot(quantile_levels, v, color = colors[i], label = MODELS[i].get_name(), linewidth = 5, linestyle = "dashed" if i == 0 else "solid")
 
     a.set_aspect((a.get_xlim()[1] - a.get_xlim()[0])/(a.get_ylim()[1] - a.get_ylim()[0]))
-    if (max_alt == 800):
-        a.legend(loc = "best")#, bbox_to_anchor = (-0.1, 1.0))
+    a.grid()
+    a.legend()
+
     a.set_xlabel("Quantile level")
     a.set_ylabel("QSS [percentage]")
 
-    f.savefig(f"qss_alt_{max_alt}.pdf", bbox_inches = "tight", format = "pdf")
-
+    f.tight_layout()
+    f.savefig(join(OUTPUT_PATH, "qss.pdf"), bbox_inches = "tight", format = "pdf")
     plt.close(f)
 
-##############################
+#########################################################
 
-from scipy.signal import medfilt
+if PLOT_QSS_ALT:
 
-dif = np.abs(alt - alt_m)[0]
-alt_idx = np.argsort(dif)
+    font = {"size": 30}
+    matplotlib.rc("font", **font)
 
-f, a = plt.subplots(1, figsize = (10, 10), dpi = 300)
 
-a.grid()
+    for (min_alt, max_alt) in [(-5, 800), (800, 2000), (2000, 3600)]:
 
-for i, c in enumerate(crps):
+        idx = np.logical_and(alt >= min_alt, alt < max_alt)
 
-    y_raw = np.nanmean(c[alt_idx], axis = (1, 2))
+        qloss_reference = np.nanmean(qloss[0][idx], axis = (0, 1, 2))
+        quantile_levels = np.arange(1.0/(qloss_reference.shape[-1] + 1), 1.0, step = 1.0/(qloss_reference.shape[-1] + 1))
 
-    y = medfilt(y_raw, kernel_size = 15)
-    ry = np.polyfit(dif[alt_idx], y, deg = 2) 
+        f, a = plt.subplots(1, figsize = (10, 10), dpi = 300)
+        a.grid()
 
-    a.plot(dif[alt_idx], y,  color = colors[i], linewidth = 5, label = models[i].get_name())
-    #a.plot(dif[alt_idx], (dif[alt_idx]**2)*ry[0] + dif[alt_idx]*ry[1] + ry[2], color = colors[i], linewidth = 5, label = models[i].get_name())
+        if max_alt < 3600:
+            a.set_title(f"{idx.sum()} stations\nAltitude in ({min_alt}, {max_alt}] meters")
+        else:
+            a.set_title(f"{idx.sum()} stations\nAltitude in ({min_alt}, {max_alt}) meters")
 
-a.legend(fancybox = True, framealpha = 0.5, markerscale = 40)
-a.set_aspect((a.get_xlim()[1] - a.get_xlim()[0])/(a.get_ylim()[1] - a.get_ylim()[0]))
+        for i, q in enumerate(qloss):
+            
+            q = np.nanmean(q[idx], axis = (0, 1, 2))
+            v = (1.0 - q/qloss_reference)*100.0
 
-a.set_xlabel("Absolute difference in altitude [meters]")
-a.set_ylabel("CRPS")
+            a.plot(quantile_levels, v, color = colors[i], linewidth = 5, label = MODELS[i].get_name(), linestyle = "dashed" if i == 0 else "solid")
 
-f.savefig(f"crps_alt.pdf", bbox_inches = "tight", format = "pdf")
-plt.close(f)
+        a.set_aspect((a.get_xlim()[1] - a.get_xlim()[0])/(a.get_ylim()[1] - a.get_ylim()[0]))
+        if (max_alt == 800):
+            a.legend(loc = "best")
+        a.set_xlabel("Quantile level")
+        a.set_ylabel("QSS [percentage]")
+
+        f.tight_layout()
+        f.savefig(join(OUTPUT_PATH, f"qss_alt_{max_alt}.pdf"), bbox_inches = "tight", format = "pdf")
+
+        plt.close(f)
+
+#########################################################
+
+if PLOT_CSS_ALT:
+    
+    font = {"size": 30}
+    matplotlib.rc("font", **font)
+
+    idx = np.argsort(alt)
+    alt = alt[idx]
+
+    #ens = RawEnsemble(np.sort(X[idx], axis = -1))
+    #ens_crps = ens.crps(Y[idx])
+
+    crps_reference = np.nanmean(crps[0][idx], axis = (1, 2))
+
+    f, a = plt.subplots(1, figsize = (10, 10), dpi = 300)
+    a.grid()
+
+    for i, c in enumerate(crps):
+
+        c = np.nanmean(c[idx], axis = (1, 2))
+        v = (1.0 - c/crps_reference)*100.0
+
+        v = medfilt(v, kernel_size = 15)
+
+        a.plot(alt, v, color = colors[i], linewidth = 5, label = MODELS[i].get_name(), linestyle = "dashed" if i == 0 else "solid")
+
+    a.set_aspect((a.get_xlim()[1] - a.get_xlim()[0])/(a.get_ylim()[1] - a.get_ylim()[0]))
+    a.set_xlabel("Station altitude\n[meters above sea level]")
+    a.set_ylabel("CRPS Skill Score [Percentage]")
+
+    f.tight_layout()
+    f.savefig(join(OUTPUT_PATH, f"css_alt.pdf"), bbox_inches = "tight", format = "pdf")
 
 
 

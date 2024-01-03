@@ -24,14 +24,14 @@ cfg = json.load(open(join(CFG_PATH, "config.json")))
 OUTPUT_PATH = cfg["generateMulti"]["outputPath"] 
 MODELS_PATH = cfg["generateMulti"]["modelsPath"]
 BEST_MODEL_ONLY = cfg["generateMulti"]["useBestModelOnly"] == "True"
+RESIDUALS = cfg["generateMulti"]["residuals"] == "True"
 
 DATA_PATH = cfg["dataPath"]
-RESIDUALS = cfg["generate"]["residuals"] == "True"
 
 if not exists(OUTPUT_PATH):
     mkdir(OUTPUT_PATH)
 
-print("Generating predictions with model:", MODELS_PATH.split("/")[-1])
+print("Generating predictions with model:", MODELS_PATH.split("/")[-1], " -> using residuals: ", RESIDUALS)
 
 #########################################################
 # Load training data, remove nan 
