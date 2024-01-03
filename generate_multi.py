@@ -63,10 +63,7 @@ dataset = Dataset(bank, bank.index, batch_size = BATCH_SIZE, train = False, cuda
 
 #########################################################
 
-<<<<<<< HEAD
-=======
 models_losses = []
->>>>>>> main
 models_regression  = []
 model_distribution = None
 
