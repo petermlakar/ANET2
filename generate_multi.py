@@ -122,7 +122,7 @@ with torch.no_grad():
 
         for model in models_regression:
 
-            model_parameters = model(x, p, j[0])
+            model_parameters = model(x, p, torch.from_numpy(j[0]))
             parameters = model_parameters if parameters is None else parameters + model_parameters
 
         parameters /= len(models_regression)
