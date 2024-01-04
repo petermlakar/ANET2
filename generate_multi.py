@@ -23,7 +23,8 @@ cfg = json.load(open(join(CFG_PATH, "config.json")))
 
 OUTPUT_PATH = cfg["generateMulti"]["outputPath"] 
 MODELS_PATH = cfg["generateMulti"]["modelsPath"]
-BEST_MODEL_ONLY = cfg["generateMulti"]["useBestModelOnly"] == "True"
+BEST_MODEL_ONLY    = cfg["generateMulti"]["useBestModelOnly"] == "True"
+AVERAGE_PARAMETERS = cfg["generateMulti"]["averageParameters"] == "True"
 RESIDUALS = cfg["generateMulti"]["residuals"] == "True"
 
 DATA_PATH = cfg["dataPath"]
@@ -118,18 +119,29 @@ with torch.no_grad():
         x, p, y, j = dataset[i]
         qtmp = q.expand(y.shape[0], y.shape[1], -1)
 
-        parameters = None
+        if AVERAGE_PARAMETERS:
 
-        for model in models_regression:
+            parameters = []
 
-            model_parameters = model(x, p, torch.from_numpy(j[0]))
-            parameters = model_parameters if parameters is None else parameters + model_parameters
+            for model in models_regression:
+                parameters.append(model(x, p, torch.from_numpy(j[0])))
 
-        parameters /= len(models_regression)
+            parameters = torch.stack(parameters, dim = 0).mean(dim = 0)
+            model_distribution.set_parameters(parameters)
 
-        model_distribution.set_parameters(parameters)
-        f = model_distribution.iF(qtmp)
-    
+            f = model_distribution.iF(qtmp)
+
+        else:
+
+            f = []
+
+            for model in models_regression:
+
+                model_distribution.set_parameters(model(x, p, torch.from_numpy(j[0])))
+                f.append(model_distribution.iF(qtmp))
+
+            f = torch.stack(f, dim = 0).mean(dim = 0)
+
         if RESIDUALS:
             P[j[0, :], j[1, :], :, :] = (f*Y_std + (x*X_std + X_mean).mean(axis = -1)[..., None]).detach().cpu().numpy()
         else:

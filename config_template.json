@@ -20,6 +20,7 @@
 		"modelsPath": "",
 		"outputPath": "",
 		"residuals": "False",
+		"averageParameters": "False",
 		"useBestModelOnly": "False"
 	},
 
