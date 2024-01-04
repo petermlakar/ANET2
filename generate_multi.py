@@ -118,18 +118,15 @@ with torch.no_grad():
         x, p, y, j = dataset[i]
         qtmp = q.expand(y.shape[0], y.shape[1], -1)
 
-        parameters = None
+        f = []
 
         for model in models_regression:
 
-            model_parameters = model(x, p)
-            parameters = model_parameters if parameters is None else parameters + model_parameters
+            model_distribution.set_parameters(model(x, p))
+            f.append(model_distribution.iF(qtmp))
 
-        parameters /= len(models_regression)
+        f = torch.stack(f, dim = 0).mean(dim = 0)
 
-        model_distribution.set_parameters(parameters)
-        f = model_distribution.iF(qtmp)
-    
         if RESIDUALS:
             P[j[0, :], j[1, :], :, :] = (f*Y_std + (x*X_std + X_mean).mean(axis = -1)[..., None]).detach().cpu().numpy()
         else:
