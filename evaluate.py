@@ -252,8 +252,16 @@ crps  = [m.crps(Y)                  for m in MODELS]
 bias  = [m.bias(Y)                  for m in MODELS]
 qloss = [m.quantile_loss(Y)         for m in MODELS]
 
+stats = []
+
 for i, model in enumerate(MODELS):
-    print("Model {} scores:\n     Continuous ranked probability score: {:.3f}\n     Quantile loss: {:.3f}\n     Median absolute error: {:.3f}\n     Bias: {:.3f}".format(model.get_name(), np.nanmean(crps[i]), np.nanmean(qloss[i]), np.nanmean(mae[i]), np.nanmean(bias[i])))
+
+    stats.append("Model {} scores:\n     Continuous ranked probability score: {:.3f}\n     Quantile loss: {:.3f}\n     Median absolute error: {:.3f}\n     Bias: {:.3f}\n".format(model.get_name(), np.nanmean(crps[i]), np.nanmean(qloss[i]), np.nanmean(mae[i]), np.nanmean(bias[i])))
+    print(stats[-1])
+
+with open(join(OUTPUT_PATH, "stats.txt"), "w") as f:
+    for s in stats:
+        f.write(s)
 
 #########################################################
 
