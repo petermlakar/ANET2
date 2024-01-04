@@ -8,14 +8,14 @@ import math
 
 class Model(nn.Module):
 
-    def __init__(self, lead_time, positive_support = False, monotone = False):
+    def __init__(self, lead_time, degree = 12, positive_support = False, monotone = False):
 
         super().__init__()
 
         self.lead_time = lead_time
         self.sfp = nn.Softplus()
 
-        self.degree = 12
+        self.degree = degree
         self.nquantiles = 100
 
         ########################################################################
