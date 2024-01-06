@@ -103,7 +103,7 @@ q = torch.arange(qstep, 1.0, step = qstep, dtype = torch.float32)
 q = torch.reshape(q, (1, 1, q.shape[0]))
 q = q.cuda() if CUDA else q
 
-print(f"Number of quantiles: {q.shape}")
+print(f"Number of quantiles: {q.shape} |  number of required parameters: 21x{model_distribution.number_of_outputs//21}")
 
 #########################################################
 

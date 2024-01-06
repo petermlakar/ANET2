@@ -55,11 +55,8 @@ class EvaluationMetrics(ABC):
     def median_absolute_error(self, y):
         return np.abs(self.get_forecast_median() - y)
 
-
-    # Continuous ranked probability score estimation
-    # based on Hersbach 2000, where the model forecast,
-    # be it quantiles or samples form the predictive
-    # distribution, is treated as an ensemble forecast,
+    # Continuous ranked probability score estimation based on Hersbach 2000, where the model forecast,
+    # be it quantiles or samples form the predictive distribution, is treated as an ensemble forecast,
     # each member having an equal weight.
     def crps(self, y):
 
@@ -125,6 +122,35 @@ class EvaluationMetrics(ABC):
         x = self.get_forecast_median()
         
         return np.nanmean((x - y), axis = (0, 1))
+
+    def sharpness(self, p = [0.5, 0.88, 0.96]):
+        
+        x = self.get_forecast()
+        n = x.shape[-1]
+
+        i = 1.0/(1 + n)
+        q = np.arange(i, 1.0, step = i, dtype = np.float32)
+
+
+        for coverage in p:
+
+            y = int(np.ceil(coverage/i)) 
+            d = (x[..., n//2 + y//2] - x[..., n//2 - y//2]).flatten()
+            
+            Q50 = np.median(d)
+            Q25, Q75 = np.percentile(d, [25, 75])
+          
+            IQR = Q75 - Q25
+
+            WH_TOP = d[d < Q75 + IQR*1.5].max()
+            WH_BOT = d[d > Q25 - IQR*1.5].min()
+
+            #print("p {} -> q50 {:.2f} | q25 {:.2f} q75 {:.2f} | wh low {:.2f} wh top {:.2f}".format(coverage, Q50, Q25, Q75, WH_BOT, WH_TOP))
+
+
+    # Sharpness as defined in Bremnes 2019
+    def sharpness_composite(self):
+        pass
 
 #########################################################
 
@@ -246,14 +272,26 @@ for m in MODELS:
 
 y_valid = np.logical_not(np.isnan(Y))
 
+shrp  = [m.sharpness() for m in MODELS]
+
+exit()
+
 mae   = [m.median_absolute_error(Y) for m in MODELS]
 pit   = [m.pit(Y, y_valid)          for m in MODELS]
 crps  = [m.crps(Y)                  for m in MODELS]
 bias  = [m.bias(Y)                  for m in MODELS]
 qloss = [m.quantile_loss(Y)         for m in MODELS]
 
+stats = []
+
 for i, model in enumerate(MODELS):
-    print("Model {} scores:\n     Continuous ranked probability score: {:.3f}\n     Quantile loss: {:.3f}\n     Median absolute error: {:.3f}\n     Bias: {:.3f}".format(model.get_name(), np.nanmean(crps[i]), np.nanmean(qloss[i]), np.nanmean(mae[i]), np.nanmean(bias[i])))
+
+    stats.append("Model {} scores:\n     Continuous ranked probability score: {:.3f}\n     Quantile loss: {:.3f}\n     Median absolute error: {:.3f}\n     Bias: {:.3f}\n".format(model.get_name(), np.nanmean(crps[i]), np.nanmean(qloss[i]), np.nanmean(mae[i]), np.nanmean(bias[i])))
+    print(stats[-1])
+
+with open(join(OUTPUT_PATH, "stats.txt"), "w") as f:
+    for s in stats:
+        f.write(s)
 
 #########################################################
 
