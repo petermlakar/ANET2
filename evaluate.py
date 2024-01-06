@@ -131,6 +131,7 @@ class EvaluationMetrics(ABC):
         i = 1.0/(1 + n)
         q = np.arange(i, 1.0, step = i, dtype = np.float32)
 
+        res = {}
 
         for coverage in p:
 
@@ -145,8 +146,9 @@ class EvaluationMetrics(ABC):
             WH_TOP = d[d < Q75 + IQR*1.5].max()
             WH_BOT = d[d > Q25 - IQR*1.5].min()
 
-            #print("p {} -> q50 {:.2f} | q25 {:.2f} q75 {:.2f} | wh low {:.2f} wh top {:.2f}".format(coverage, Q50, Q25, Q75, WH_BOT, WH_TOP))
+            res[coverage] = {"med": Q50, "q1": Q25, "q3": Q75, "whislo": WH_BOT, "whishi": WH_TOP}
 
+        return res 
 
     # Sharpness as defined in Bremnes 2019
     def sharpness_composite(self):
@@ -274,8 +276,6 @@ y_valid = np.logical_not(np.isnan(Y))
 
 shrp  = [m.sharpness() for m in MODELS]
 
-exit()
-
 mae   = [m.median_absolute_error(Y) for m in MODELS]
 pit   = [m.pit(Y, y_valid)          for m in MODELS]
 crps  = [m.crps(Y)                  for m in MODELS]
@@ -302,6 +302,7 @@ PLOT_CRPS_PER_STATION = True
 PLOT_QSS = True
 PLOT_QSS_ALT = True
 PLOT_CSS_ALT = True
+PLOT_SHARPNESS = True
 
 #########################################################
 
@@ -550,5 +551,51 @@ if PLOT_CSS_ALT:
     f.tight_layout()
     f.savefig(join(OUTPUT_PATH, f"css_alt.pdf"), bbox_inches = "tight", format = "pdf")
 
+#########################################################
 
+if PLOT_SHARPNESS:
+
+    font = {"size": 30}
+    matplotlib.rc("font", **font)
+
+    ymin, ymax = None, None
+
+    for coverage in [0.5, 0.88, 0.96]:
+        for s in shrp:
+
+            ymin = s[coverage]["whislo"] if ymin is None or s[coverage]["whislo"] < ymin else ymin
+            ymax = s[coverage]["whishi"] if ymax is None or s[coverage]["whishi"] > ymax else ymax
+
+
+    f, ax = plt.subplots(1, 3, dpi = 300, figsize = (30, 10))
+
+    for j, coverage in enumerate([0.5, 0.88, 0.96]): 
+
+        a = ax[j]
+
+        pos = np.arange(1, len(MODELS) + 1, step = 1)
+        wdt = 0.25
+
+        for i, s in enumerate(shrp): 
+
+            s = s[coverage]
+            s["label"] = MODELS[i].get_name()
+
+            bplt = a.bxp([s], [pos[i]], wdt, showfliers = False, patch_artist = True)
+
+            for patch in bplt["boxes"]:
+                patch.set_facecolor(colors[i])
+
+        #a.set_ylim(ymin - 0.1, ymax + 0.1)
+        a.set_aspect((a.get_xlim()[1] - a.get_xlim()[0])/(a.get_ylim()[1] - a.get_ylim()[0]))
+        a.set_title(f"Centered {int(coverage*100)}% interval coverage")
+
+        if j == 1:
+            a.set_xlabel("Models")
+
+        if j == 0:
+            a.set_ylabel("Coverage interval length [K]")
+
+    f.tight_layout()
+    f.savefig(join(OUTPUT_PATH, f"sharpness.pdf"), bbox_inches = "tight", format = "pdf")
 
