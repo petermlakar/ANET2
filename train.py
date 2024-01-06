@@ -41,7 +41,7 @@ match MODEL_TYPE:
         model_distribution = Model(LEAD_TIME, nblocks = 2, nknots = 5)
     case "NORM":
         from models.NORM import Model
-        model_distribution = Model(LEAD_TIME)
+        model_distribution = Model(LEAD_TIME, nblocks = 2, nknots = 5)
     case "BERN":
         from models.BERN import Model
         model_distribution = Model(LEAD_TIME, degree = 12, monotone = True)
