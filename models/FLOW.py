@@ -242,8 +242,8 @@ class Model(nn.Module):
         self.sqrt2pi = torch.sqrt(torch.tensor(2.0, dtype = torch.float32)*np.pi)
         self.sfp = nn.Softplus()
     
-        self.nblocks = 1
-        self.nknots  = 6
+        self.nblocks = nblocks
+        self.nknots  = nknots
 
         self.number_of_parameters = self.nblocks*self.nknots*2
        
