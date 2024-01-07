@@ -149,6 +149,8 @@ class EvaluationMetrics(ABC):
             WH_BOT = d[d > Q25 - IQR*1.5].min()
 
             res[coverage] = {"med": Q50, "q1": Q25, "q3": Q75, "whislo": WH_BOT, "whishi": WH_TOP}
+        
+        print()
 
         return res 
 
