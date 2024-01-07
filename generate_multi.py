@@ -103,7 +103,7 @@ q = torch.arange(qstep, 1.0, step = qstep, dtype = torch.float32)
 q = torch.reshape(q, (1, 1, q.shape[0]))
 q = q.cuda() if CUDA else q
 
-print(f"Number of quantiles: {q.shape}")
+print(f"Number of quantiles: {q.shape} |  number of required parameters: 21x{model_distribution.number_of_outputs//21}")
 
 #########################################################
 
@@ -136,7 +136,6 @@ with torch.no_grad():
             f = []
 
             for model in models_regression:
-
                 model_distribution.set_parameters(model(x, p, torch.from_numpy(j[0])))
                 f.append(model_distribution.iF(qtmp))
 
