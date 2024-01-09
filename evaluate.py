@@ -138,11 +138,11 @@ class EvaluationMetrics(ABC):
             y = int(np.ceil(coverage/i)) 
             d = (x[..., n//2 + y//2] - x[..., n//2 - y//2]).flatten()
     
-            print(f"{coverage} -> {d.min()} {d.max()}")
-
             Q50 = np.median(d)
             Q25, Q75 = np.percentile(d, [25, 75])
-          
+
+            print(f"{coverage} -> {Q50} / {Q25} {Q75}")
+
             IQR = Q75 - Q25
 
             WH_TOP = d[d < Q75 + IQR*1.5].max()
