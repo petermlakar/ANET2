@@ -14,9 +14,6 @@ import matplotlib.pyplot as plt
 from matplotlib import cm
 import matplotlib.ticker as mticker
 
-font = {"size"   : 24}    
-matplotlib.rc("font", **font)
-
 from dataset import load_test_dataset, load_training_dataset
 import json
 
@@ -123,13 +120,13 @@ class EvaluationMetrics(ABC):
         
         return np.nanmean((x - y), axis = (0, 1))
 
+    # Central intervals sharpness
     def sharpness(self, p = [0.5, 0.88, 0.96]):
         
         x = self.get_forecast()
         n = x.shape[-1]
 
         i = 1.0/(1 + n)
-        q = np.arange(i, 1.0, step = i, dtype = np.float32)
 
         res = {}
 
@@ -137,11 +134,10 @@ class EvaluationMetrics(ABC):
 
             y = int(np.ceil(coverage/i)) 
             d = (x[..., n//2 + y//2] - x[..., n//2 - y//2]).flatten()
-    
+            d = d[~np.isnan(d)]
+
             Q50 = np.median(d)
             Q25, Q75 = np.percentile(d, [25, 75])
-
-            print(f"{coverage} -> {Q50} / {Q25} {Q75}")
 
             IQR = Q75 - Q25
 
@@ -149,14 +145,36 @@ class EvaluationMetrics(ABC):
             WH_BOT = d[d > Q25 - IQR*1.5].min()
 
             res[coverage] = {"med": Q50, "q1": Q25, "q3": Q75, "whislo": WH_BOT, "whishi": WH_TOP}
-        
-        print()
 
         return res 
 
-    # Sharpness as defined in Bremnes 2019
-    def sharpness_composite(self):
-        pass
+    # Composite intervals sharpness as defined in Bremnes 2019
+    def sharpness_composite(self, p = [0.5, 0.88, 0.96]):
+        
+        x = self.get_forecast()
+        n = x.shape[-1]
+
+        i = 1.0/(1.0 + n)
+
+        res = {}
+
+        for coverage in p:
+
+            y = int(np.ceil(coverage/i))
+            d = np.sort(x[..., 1:] - x[..., :-1], axis = -1)[..., :y].sum(axis = -1).flatten()
+            d = d[~np.isnan(d)]
+
+            Q50 = np.median(d)
+            Q25, Q75 = np.percentile(d, [25, 75])
+
+            IQR = Q75 - Q25
+
+            WH_TOP = d[d < Q75 + IQR*1.5].max()
+            WH_BOT = d[d > Q25 - IQR*1.5].min()
+
+            res[coverage] = {"med": Q50, "q1": Q25, "q3": Q75, "whislo": WH_BOT, "whishi": WH_TOP}
+
+        return res
 
 #########################################################
 
@@ -192,6 +210,9 @@ class ANET1(EvaluationMetrics):
     def load(self):
         self.x = xr.open_dataset(self.path)["t2m"].to_numpy()
         self.sort_members()
+
+    def get_forecast_median(self):
+        return self.x[..., self.x.shape[-1]//2] 
 
 class EMOS(EvaluationMetrics):
 
@@ -278,7 +299,8 @@ for m in MODELS:
 
 y_valid = np.logical_not(np.isnan(Y))
 
-shrp  = [m.sharpness() for m in MODELS]
+shrp_comp = [m.sharpness_composite() for m in MODELS]
+shrp      = [m.sharpness() for m in MODELS]
 
 mae   = [m.median_absolute_error(Y) for m in MODELS]
 pit   = [m.pit(Y, y_valid)          for m in MODELS]
@@ -290,7 +312,23 @@ stats = []
 
 for i, model in enumerate(MODELS):
 
-    stats.append("Model {} scores:\n     Continuous ranked probability score: {:.3f}\n     Quantile loss: {:.3f}\n     Median absolute error: {:.3f}\n     Bias: {:.3f}\n".format(model.get_name(), np.nanmean(crps[i]), np.nanmean(qloss[i]), np.nanmean(mae[i]), np.nanmean(bias[i])))
+    stats.append("Model {} scores:\n     Continuous ranked probability score: {:.3f}\n     Quantile loss: {:.3f}\n     Median absolute error: {:.3f}\n     Bias: {:.3f}\n     Central interval sharpness:\n".format(
+                  model.get_name(), np.nanmean(crps[i]), 
+                  np.nanmean(qloss[i]), np.nanmean(mae[i]), np.nanmean(bias[i])))
+
+    for cov in shrp[i]:
+        stats[-1] += "         Coverage {:.2f}: q50 {:.3f} | q25 {:.3f} q75 {:.3f} | whilo {:.3f} whihi {:.3f}\n".format(
+                      cov, 
+                      shrp[i][cov]["med"], shrp[i][cov]["q1"], shrp[i][cov]["q3"], shrp[i][cov]["whislo"], shrp[i][cov]["whishi"])
+
+    stats[-1] += "     Composite interval sharpness:\n"
+    for cov in shrp_comp[i]:
+        stats[-1] += "         Coverage {:.2f}: q50 {:.3f} | q25 {:.3f} q75 {:.3f} | whilo {:.3f} whihi {:.3f}\n".format(
+                      cov, 
+                      shrp_comp[i][cov]["med"], shrp_comp[i][cov]["q1"], shrp_comp[i][cov]["q3"], shrp_comp[i][cov]["whislo"], shrp_comp[i][cov]["whishi"])
+
+
+
     print(stats[-1])
 
 with open(join(OUTPUT_PATH, "stats.txt"), "w") as f:
@@ -311,6 +349,7 @@ PLOT_SHARPNESS = True
 #########################################################
 
 colors = [
+        (169.0/255.0, 214.0/255.0, 124.0/255.0),
         (203.0/255.0, 191.0/255.0, 113.0/255.0),
         (206.0/255.0, 91.0/255.0, 91.0/255.0),
         (88.0/255.0, 123.0/255.0, 183.0/255.0),
@@ -363,7 +402,7 @@ if PLOT_CRPS:
     f, a = plt.subplots(1, figsize = (10, 10), dpi = 300)
     for i, c in enumerate(crps):
 
-        a.plot(np.nanmean(c, axis = (0, 1)), linewidth = 4, label = MODELS[i].get_name(), color = colors[i])
+        a.plot(np.nanmean(c, axis = (0, 1)), linewidth = 4, label = MODELS[i].get_name(), color = colors[i], marker = markers[i], markersize = 15)
 
         a.set_xlabel("Lead time [6 hours]")
         a.set_ylabel("CRPS [K]")
@@ -385,7 +424,7 @@ if PLOT_BIAS:
 
     for i, c in enumerate(bias):
 
-        a.plot(c, linewidth = 4, label = MODELS[i].get_name(), color = colors[i])
+        a.plot(c, linewidth = 4, label = MODELS[i].get_name(), color = colors[i], marker = markers[i], markersize = 15)
 
         a.set_xlabel("Lead time [6 hours]")
         a.set_ylabel("Bias [Temperature in K]")
@@ -438,7 +477,7 @@ if PLOT_CRPS_PER_STATION:
 
         idx = crps_per_station_idx == i
 
-        a.scatter(x = lon[idx], y = lat[idx], color = colors[i], s = 40, alpha = 0.8, transform = ccrs.PlateCarree(), label = f"{MODELS[i].get_name()}: {idx.sum()} cases", marker = markers[i])
+        a.scatter(x = lon[idx], y = lat[idx], color = colors[i], s = 40, alpha = 0.8, transform = ccrs.PlateCarree(), label = f"{MODELS[i].get_name()}: {idx.sum()} cases", marker = markers[i], zorder = 1)
 
     a.legend(fancybox = True, framealpha = 0.5, markerscale = 2)
 
@@ -467,7 +506,7 @@ if PLOT_QSS:
 
         v = (1.0 - q/qloss_reference)*100.0
 
-        a.plot(quantile_levels, v, color = colors[i], label = MODELS[i].get_name(), linewidth = 5, linestyle = "dashed" if i == 0 else "solid")
+        a.plot(quantile_levels, v, color = colors[i], label = MODELS[i].get_name(), linewidth = 5, linestyle = "dashed" if i == 0 else "solid", marker = markers[i], markersize = 15, markevery = 0.1)
 
     a.set_aspect((a.get_xlim()[1] - a.get_xlim()[0])/(a.get_ylim()[1] - a.get_ylim()[0]))
     a.grid()
@@ -508,7 +547,7 @@ if PLOT_QSS_ALT:
             q = np.nanmean(q[idx], axis = (0, 1, 2))
             v = (1.0 - q/qloss_reference)*100.0
 
-            a.plot(quantile_levels, v, color = colors[i], linewidth = 5, label = MODELS[i].get_name(), linestyle = "dashed" if i == 0 else "solid")
+            a.plot(quantile_levels, v, color = colors[i], linewidth = 5, label = MODELS[i].get_name(), linestyle = "dashed" if i == 0 else "solid", marker = markers[i], markersize = 15, markevery = 0.1)
 
         a.set_aspect((a.get_xlim()[1] - a.get_xlim()[0])/(a.get_ylim()[1] - a.get_ylim()[0]))
         if (max_alt == 800):
@@ -546,7 +585,7 @@ if PLOT_CSS_ALT:
 
         v = medfilt(v, kernel_size = 15)
 
-        a.plot(alt, v, color = colors[i], linewidth = 5, label = MODELS[i].get_name(), linestyle = "dashed" if i == 0 else "solid")
+        a.plot(alt, v, color = colors[i], linewidth = 5, label = MODELS[i].get_name(), linestyle = "dashed" if i == 0 else "solid", marker = markers[i], markersize = 15, markevery = 0.1)
 
     a.set_aspect((a.get_xlim()[1] - a.get_xlim()[0])/(a.get_ylim()[1] - a.get_ylim()[0]))
     a.set_xlabel("Station altitude\n[meters above sea level]")
