@@ -13,7 +13,7 @@ from time import time as timef
 
 import json
 
-CUDA = torch.cuda.is_available() 
+CUDA = False #torch.cuda.is_available() 
 
 #########################################################
 
@@ -70,9 +70,9 @@ model_distribution = None
 
 for m in listdir(MODELS_PATH):
 
-    models_regression.append(torch.jit.load(join(MODELS_PATH, m, "model_regression")))
+    models_regression.append(torch.jit.load(join(MODELS_PATH, m, "model_regression"), map_location = torch.device("cpu")))
     models_losses.append(np.loadtxt(join(MODELS_PATH, m, "Valid_loss")).min())
-    model_distribution = model_distribution if model_distribution is not None else torch.jit.load(join(MODELS_PATH, m, "model_distribution"))
+    model_distribution = model_distribution if model_distribution is not None else torch.jit.load(join(MODELS_PATH, m, "model_distribution"), map_location = torch.device("cpu"))
 
     if CUDA:
         models_regression[-1] = models_regression[-1].to("cuda:0")
