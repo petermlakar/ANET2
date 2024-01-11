@@ -2,6 +2,7 @@
 *.out
 *.sh
 *.swp
+*.npy
 
 BERN*/
 FLOW*/
