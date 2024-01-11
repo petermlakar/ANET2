@@ -112,7 +112,9 @@ class EvaluationMetrics(ABC):
             c[i] = np.logical_and(y >= r[..., i - 1], y < r[..., i])[y_valid].sum()
         c = c/y_valid.sum()
 
-        return c
+        MRE = ((c[0] + c[-1])*(r.shape[-1] + 1)/2.0 - 1.0)*100.0
+
+        return {"MRE": MRE, "pit": c}
 
     def bias(self, y):
 
@@ -238,8 +240,11 @@ class EMOS(EvaluationMetrics):
 
         for i in range(1, r.shape[-1]):
             c[i] = np.logical_and(y >= r[..., i - 1], y < r[..., i])[valid].sum()
+        c = c/valid.sum()
 
-        return c/valid.sum()
+        MRE = ((c[0] + c[-1])*(r.shape[-1] + 1)/2.0 - 1.0)*100.0
+
+        return {"MRE": MRE, "pit": c}
 
 class DVINE(EvaluationMetrics):
     
@@ -299,14 +304,13 @@ for m in MODELS:
 
 y_valid = np.logical_not(np.isnan(Y))
 
+pit       = [m.pit(Y, y_valid)       for m in MODELS]
 shrp_comp = [m.sharpness_composite() for m in MODELS]
-shrp      = [m.sharpness() for m in MODELS]
-
-mae   = [m.median_absolute_error(Y) for m in MODELS]
-pit   = [m.pit(Y, y_valid)          for m in MODELS]
-crps  = [m.crps(Y)                  for m in MODELS]
-bias  = [m.bias(Y)                  for m in MODELS]
-qloss = [m.quantile_loss(Y)         for m in MODELS]
+shrp      = [m.sharpness()           for m in MODELS]
+mae   = [m.median_absolute_error(Y)  for m in MODELS]
+crps  = [m.crps(Y)                   for m in MODELS]
+bias  = [m.bias(Y)                   for m in MODELS]
+qloss = [m.quantile_loss(Y)          for m in MODELS]
 
 stats = []
 
@@ -326,8 +330,6 @@ for i, model in enumerate(MODELS):
         stats[-1] += "         Coverage {:.2f}: q50 {:.3f} | q25 {:.3f} q75 {:.3f} | whilo {:.3f} whihi {:.3f}\n".format(
                       cov, 
                       shrp_comp[i][cov]["med"], shrp_comp[i][cov]["q1"], shrp_comp[i][cov]["q3"], shrp_comp[i][cov]["whislo"], shrp_comp[i][cov]["whishi"])
-
-
 
     print(stats[-1])
 
@@ -369,19 +371,21 @@ if PLOT_PIT:
 
         pit_plots.append((plt.subplots(1, figsize = (10, 10), dpi = 300)))
 
-        nbins = MODELS[i].get_forecast().shape[-1] + 1
+        nbins = p["pit"].shape[0]
 
-        c = pit_plots[i][1].hist(np.arange(nbins), weights = p, bins = nbins, label = MODELS[i].get_name(), color = colors[i])
+        c = pit_plots[i][1].hist(np.arange(1, nbins + 1), weights = p["pit"], bins = np.arange(1, 54), label = "{}\nMRE: {:.2f}%".format(MODELS[i].get_name(), p["MRE"]), color = colors[i], edgecolor = "black")
         c = c[0]
 
-        pit_plots[i][1].hlines(1.0/nbins, 0, nbins - 1, color = "black", linestyle = "dashed")
+        pit_plots[i][1].hlines(1.0/nbins, 1, nbins, color = "black", linestyle = "dashed")
         pit_max = pit_max if c.max() < pit_max else c.max()
 
-        pit_plots[i][1].grid()
+        #pit_plots[i][1].grid()
         pit_plots[i][1].legend()
 
         pit_plots[i][1].set_xlabel("Bins")
         pit_plots[i][1].set_ylabel("Density")
+
+        pit_plots[i][1].set_xticks([5.5, 15.5, 25.5, 35.5, 45.5], labels = [5, 15, 25, 35, 45])
 
     for i in range(len(pit)):
 
@@ -391,6 +395,8 @@ if PLOT_PIT:
         pit_plots[i][0].tight_layout()
         pit_plots[i][0].savefig(join(OUTPUT_PATH, f"PIT_{MODELS[i].get_name()}.pdf"), bbox_inches = "tight", format = "pdf")
         plt.close(pit_plots[i][0])
+
+exit()
 
 #########################################################
 
@@ -610,11 +616,11 @@ if PLOT_SHARPNESS:
             ymax = s[coverage]["whishi"] if ymax is None or s[coverage]["whishi"] > ymax else ymax
 
 
-    f, ax = plt.subplots(1, 3, dpi = 300, figsize = (30, 10))
+    f, ax = plt.subplots(2, 3, dpi = 300, figsize = (30, 30))
 
     for j, coverage in enumerate([0.5, 0.88, 0.96]): 
 
-        a = ax[j]
+        a = ax[0, j]
 
         pos = np.arange(1, len(MODELS) + 1, step = 1)
         wdt = 0.25
@@ -638,6 +644,35 @@ if PLOT_SHARPNESS:
 
         if j == 0:
             a.set_ylabel("Coverage interval length [K]")
+
+    for j, coverage in enumerate([0.5, 0.88, 0.96]): 
+
+        a = ax[1, j]
+
+        pos = np.arange(1, len(MODELS) + 1, step = 1)
+        wdt = 0.25
+
+        for i, s in enumerate(shrp_comp): 
+
+            s = s[coverage]
+            s["label"] = MODELS[i].get_name()
+
+            bplt = a.bxp([s], [pos[i]], wdt, showfliers = False, patch_artist = True)
+
+            for patch in bplt["boxes"]:
+                patch.set_facecolor(colors[i])
+
+        #a.set_ylim(ymin - 0.1, ymax + 0.1)
+        a.set_aspect((a.get_xlim()[1] - a.get_xlim()[0])/(a.get_ylim()[1] - a.get_ylim()[0]))
+        a.set_title(f"Composite {int(coverage*100)}% interval coverage")
+
+        if j == 1:
+            a.set_xlabel("Models")
+
+        if j == 0:
+            a.set_ylabel("Coverage interval length [K]")
+
+
 
     f.tight_layout()
     f.savefig(join(OUTPUT_PATH, f"sharpness.pdf"), bbox_inches = "tight", format = "pdf")

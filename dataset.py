@@ -19,8 +19,6 @@ class Databank():
         self.n_samples = X.shape[0]*X.shape[1]
         self.n_members = X.shape[-1]
 
-        print(f"P shape: {self.P.shape}")
-
         self.index = np.stack(np.meshgrid(np.arange(0, X.shape[0]), np.arange(0, X.shape[1])), axis = 0)
         self.index = np.reshape(self.index, (self.index.shape[0], np.prod(self.index.shape[1:])))
 
