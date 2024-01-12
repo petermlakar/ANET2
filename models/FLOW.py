@@ -301,7 +301,9 @@ class Model(nn.Module):
         dt = dt.view((fs0, fs1)) 
 
         return torch.exp(-0.5*torch.pow(f, 2))*dt/self.sqrt2pi
-  
+ 
+        # -0.5*pow(f, 2) + log(dt) - log(sqrt2pi)
+        # 0.5*pow(f, 2) - log(dt) + log(sqrt2pi)
 
     @jit.export
     def nloglikelihood(self, f):

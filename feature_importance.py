@@ -44,7 +44,9 @@ CUDA = torch.cuda.is_available()
 
 #########################################################
 
-COMPUTE = False 
+COST_FUNCTION = "ll"
+
+COMPUTE = True 
 
 if COMPUTE:
 
@@ -81,6 +83,9 @@ if COMPUTE:
     time, stations,\
     valid_time = load_test_dataset(DATA_PATH)
 
+    if COST_FUNCTION == "ll":
+        Y = (Y - X.mean(axis = -1))/X_std
+
     X = normalize(X, X_mean, X_std)
     P = normalize(P, P_mean, P_std)
 
@@ -108,6 +113,13 @@ if COMPUTE:
     if CUDA:
         model_distribution = model_distribution.to("cuda:0")
 
+    i = np.where(np.array(models_losses) == np.array(models_losses).min())[0][0]
+
+    models_regression = [models_regression[i]]
+    models_losses = models_losses[i]
+
+    print(f"Best only mode: loss -> {models_losses}")
+
     #########################################################
 
     nbins = 51
@@ -130,7 +142,7 @@ if COMPUTE:
         with torch.no_grad():
 
             shp = X.shape
-
+    
             X = np.reshape(X, (np.prod(shp[:-2]), shp[-2], shp[-1]))
             X[:, l] = X[permutation, l]
             X = np.reshape(X, shp)
@@ -141,32 +153,44 @@ if COMPUTE:
             for i in range(len(dataset)):
 
                 x, p, y, j = dataset[i]
-                qtmp = q.expand(y.shape[0], y.shape[1], -1)
 
-                f = []
-                for model in models_regression:
+                if COST_FUNCTION == "crps":
 
-                    model_distribution.set_parameters(model(x, p))
-                    f.append(model_distribution.iF(qtmp))
+                    qtmp = q.expand(y.shape[0], y.shape[1], -1)
 
-                f = torch.stack(f, dim = 0).mean(dim = 0)
+                    f = []
+                    for model in models_regression:
 
-                if RESIDUALS:
-                    f = (f*Y_std + (x*X_std + X_mean).mean(axis = -1)[..., None]).detach().cpu().numpy()
+                        model_distribution.set_parameters(model(x, p))
+                        f.append(model_distribution.iF(qtmp))
+
+                    f = torch.stack(f, dim = 0).mean(dim = 0)
+
+                    if RESIDUALS:
+                        f = (f*Y_std + (x*X_std + X_mean).mean(axis = -1)[..., None]).detach().cpu().numpy()
+                    else:
+                        f = f.detach().cpu().numpy()*X_std + X_mean
+
+                    y = y.detach().cpu().numpy()
+
+                    scores.append(crps(f, y))
+
                 else:
-                    f = f.detach().cpu().numpy()*X_std + X_mean
 
-                y = y.detach().cpu().numpy()
-
-                scores.append(crps(f, y))
+                    model_distribution.set_parameters(models_regression[-1](x, p))
+                    scores.append(model_distribution.pdf(y).detach().cpu().numpy())
 
                 if (i + 1) % 100 == 0:
                     print(f"    Computing scores on iteration {i + 1}/{len(dataset)}")
 
-        return np.nanmean(np.concatenate(scores, axis = 0), axis = 0)
+        if COST_FUNCTION == "crps":
+            return np.nanmean(np.concatenate(scores, axis = 0), axis = 0)
+        else:
+            return np.nanprod(np.concatenate(scores, axis = 0), axis = 0)
 
-    #baseline = generate_scores(0, np.arange(167170), X, Y, P)
-    baseline = generate_scores(0, None, X, Y, P)
+    baseline = generate_scores(0, np.arange(167170), X, Y, P)
+
+    print(f"Baseline: {baseline}")
 
     I = np.zeros((21, 21), dtype = np.float32)
 
@@ -175,6 +199,8 @@ if COMPUTE:
         print(f"\nEstimating relative importance of lead time {l + 1}")
 
         scores = generate_scores(l, np.random.permutation(167170), X, Y, P)
+
+        print(scores)
 
         I[:, l] = scores/baseline
 
