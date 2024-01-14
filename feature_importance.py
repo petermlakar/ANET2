@@ -6,7 +6,7 @@ from os.path import exists, join
 from os import mkdir, listdir
 
 import sys
-from dataset import Databank, Dataset, norm, normalize, denormalize, load_training_dataset, load_test_dataset 
+from dataset import Databank, Dataset, norm, standardize, destandardize, load_training_dataset, load_test_dataset 
 
 from time import time as timef
 
@@ -86,8 +86,8 @@ if COMPUTE:
     if COST_FUNCTION == "ll":
         Y = (Y - X.mean(axis = -1))/X_std
 
-    X = normalize(X, X_mean, X_std)
-    P = normalize(P, P_mean, P_std)
+    X = standardize(X, X_mean, X_std)
+    P = standardize(P, P_mean, P_std)
 
     #########################################################
 
@@ -175,15 +175,11 @@ if COMPUTE:
                         f = f.detach().cpu().numpy()*X_std + X_mean
 
                     y = y.detach().cpu().numpy()
-
                     scores.append(crps(f, y))
 
                 else:
-
                     model_distribution.set_parameters(models_regression[-1](x, p))
                     scores.append(model_distribution.nloglikelihood(y).detach().cpu().numpy())
-
-                    print(scores[-1].shape)
 
                 if (i + 1) % 100 == 0:
                     print(f"    Computing scores on iteration {i + 1}/{len(dataset)}")
@@ -191,13 +187,15 @@ if COMPUTE:
         if COST_FUNCTION == "crps":
             return np.nanmean(np.concatenate(scores, axis = 0), axis = 0)
         else:
-            return np.nanprod(np.concatenate(scores, axis = 0), axis = 0)
+            return np.nanmean(np.concatenate(scores, axis = 0), axis = 0)
 
     baseline = generate_scores(0, np.arange(167170), X, Y, P)
 
-    print(f"Baseline: {baseline}")
+    print("Baseline: " + "".join(list(map(lambda k: "({:.3f}) ".format(k), baseline))))
+
 
     I = np.zeros((21, 21), dtype = np.float32)
+    S = []
 
     for l in range(21):
 
@@ -205,19 +203,32 @@ if COMPUTE:
 
         scores = generate_scores(l, np.random.permutation(167170), X, Y, P)
 
-        print(scores)
+        print("Scores: " + "".join(list(map(lambda k: "({:.3f}) ".format(k), scores))))
 
-        I[:, l] = scores/baseline
+        if COST_FUNCTION == "crps":
+            I[:, l] = np.abs(baseline - scores)/baseline
+            print(f"Importance for lead time {l + 1} = " + "".join(list(map(lambda k: "{:.3f} ".format(k), I[:, l]))))
+        else:
+            S.append(scores)
 
-        print(f"Importance for lead time {l + 1} = " + "".join(list(map(lambda k: "{:.3f} ".format(k), I[:, l]))))
-
+    if COST_FUNCTION == "ll":
         
+        S = np.stack(S, axis = 0)
+
+        a = S.min() - 1.0
+        b = np.abs((S[0] - a)/S[0])
+
+        for l in range(21):
+
+            I[:, l] = b*np.abs(S[0] - S[l])/(S[0] - a)
+            print(f"Importance for lead time {l + 1} = " + "".join(list(map(lambda k: "{:.3f} ".format(k), I[:, l]))))
+    
     np.save("importance", I)
 
 else:
     import matplotlib.pyplot as plt
 
-    I = -np.flip(np.load("importance_relative.npy"), axis = 0)
+    I = np.flip(np.load("importance.npy"), axis = 0)
     #I = I/I.sum(axis = 0)[None]
 
     print(I.mean(axis = 0))
