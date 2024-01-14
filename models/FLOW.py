@@ -345,9 +345,7 @@ class Model(nn.Module):
         f  = f.view((fs0, fs1))
         dt = dt.view((fs0, fs1)) 
 
-        loss = torch.pow(f, 2)*0.5 - dt
- 
-        return loss
+        return torch.pow(f, 2)*0.5 - dt
 
     @jit.export
     def iF(self, f):

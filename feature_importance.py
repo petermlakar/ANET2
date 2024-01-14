@@ -97,13 +97,16 @@ if COMPUTE:
 
     models_losses = []
     models_regression  = []
-    model_distribution = None
+
+    from models.FLOW import Model
+
+    model_distribution = Model(lead_time = 21, nblocks = 4, nknots = 5)
 
     for m in listdir(MODELS_PATH):
 
         models_regression.append(torch.jit.load(join(MODELS_PATH, m, "model_regression"), map_location = torch.device("cpu")))
         models_losses.append(np.loadtxt(join(MODELS_PATH, m, "Valid_loss")).min())
-        model_distribution = model_distribution if model_distribution is not None else torch.jit.load(join(MODELS_PATH, m, "model_distribution"), map_location = torch.device("cpu"))
+        #model_distribution = model_distribution if model_distribution is not None else torch.jit.load(join(MODELS_PATH, m, "model_distribution"), map_location = torch.device("cpu"))
 
         if CUDA:
             models_regression[-1] = models_regression[-1].to("cuda:0")
@@ -178,7 +181,9 @@ if COMPUTE:
                 else:
 
                     model_distribution.set_parameters(models_regression[-1](x, p))
-                    scores.append(model_distribution.pdf(y).detach().cpu().numpy())
+                    scores.append(model_distribution.nloglikelihood(y).detach().cpu().numpy())
+
+                    print(scores[-1].shape)
 
                 if (i + 1) % 100 == 0:
                     print(f"    Computing scores on iteration {i + 1}/{len(dataset)}")
