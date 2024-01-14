@@ -232,7 +232,7 @@ class SplineBlock(nn.Module):
 
 class Model(nn.Module):
 
-    def __init__(self, lead_time):
+    def __init__(self, lead_time, nblocks = 1, nknots = 6):
 
         super().__init__()
 
@@ -242,8 +242,8 @@ class Model(nn.Module):
         self.sqrt2pi = torch.sqrt(torch.tensor(2.0, dtype = torch.float32)*np.pi)
         self.sfp = nn.Softplus()
     
-        self.nblocks = 4
-        self.nknots  = 5
+        self.nblocks = nblocks
+        self.nknots  = nknots
 
         self.number_of_parameters = self.nblocks*self.nknots*2
        
@@ -253,6 +253,7 @@ class Model(nn.Module):
         self.number_of_outputs = self.number_of_parameters*self.lead_time 
 
         self.lq = nn.Parameter(torch.unsqueeze(torch.unsqueeze(torch.arange(1.0/52.0, 1.0, step = 1.0/52.0), dim = 0), dim = 0), requires_grad = False)
+        self.ones = nn.Parameter(torch.ones((1, 1), dtype = torch.float32), requires_grad = False)
 
     def forward(self):
         return None
@@ -277,20 +278,16 @@ class Model(nn.Module):
 
         for i in torch.arange(self.nblocks):
 
-            t = torch.cumsum(torch.cat([torch.unsqueeze(prm_t[:, i, 0], dim = -1), 1e-3 + self.sfp(prm_t[:, i, 1:])], dim = -1), dim = -1)
-            y = torch.cumsum(torch.cat([torch.unsqueeze(prm_y[:, i, 0], dim = -1), 1e-3 + self.sfp(prm_y[:, i, 1:])], dim = -1), dim = -1)
+            t = torch.cumsum(torch.cat([prm_t[:, i, 0][..., None], 1e-3 + self.sfp(prm_t[:, i, 1:])], dim = -1), dim = -1)
+            y = torch.cumsum(torch.cat([prm_y[:, i, 0][..., None], 1e-3 + self.sfp(prm_y[:, i, 1:])], dim = -1), dim = -1)
 
             h  = t[:, 1:] - t[:, :-1]
             df = (y[:, 1:] - y[:, :-1])/h
 
             di = df[:, :-1]*df[:, 1:]/((y[:, 2:] - y[:, :-2])/(t[:, 2:] - t[:, :-2]))
-            d1 = torch.unsqueeze(torch.pow(df[:, 0], 2)/((y[:, 2] - y[:, 0])/(t[:, 2] - t[:, 0])), dim = -1)
-            dn = torch.unsqueeze(torch.pow(df[:, -1], 2)/((y[:, -1] - y[:, -3])/(t[:, -1] - t[:, -3])), dim = -1)
+            d = torch.cat([self.ones.expand(di.shape[0], -1), di, self.ones.expand(di.shape[0], -1)], dim = -1)
 
-            d = torch.cat([d1, di, dn], dim = -1)
-
-            self.spline_block.set(torch.unsqueeze(t, dim = 1), torch.unsqueeze(y, dim = 1), torch.unsqueeze(d, dim = 1))
-
+            self.spline_block.set(t[:, None], y[:, None], d[:, None])
             dt.append(self.spline_block.dt(f))
             f  = self.spline_block(f)
 
@@ -301,9 +298,6 @@ class Model(nn.Module):
         dt = dt.view((fs0, fs1)) 
 
         return torch.exp(-0.5*torch.pow(f, 2))*dt/self.sqrt2pi
- 
-        # -0.5*pow(f, 2) + log(dt) - log(sqrt2pi)
-        # 0.5*pow(f, 2) - log(dt) + log(sqrt2pi)
 
     @jit.export
     def nloglikelihood(self, f):
@@ -353,7 +347,7 @@ class Model(nn.Module):
 
         loss = torch.pow(f, 2)*0.5 - dt
  
-        return torch.nanmean(loss, dim = 0)
+        return loss
 
     @jit.export
     def iF(self, f):
@@ -379,19 +373,16 @@ class Model(nn.Module):
 
         for i in torch.flip(torch.arange(self.nblocks), dims = (0,)):
 
-            t = torch.cumsum(torch.cat([torch.unsqueeze(prm_t[:, i, 0], dim = -1), 1e-3 + self.sfp(prm_t[:, i, 1:])], dim = -1), dim = -1)
-            y = torch.cumsum(torch.cat([torch.unsqueeze(prm_y[:, i, 0], dim = -1), 1e-3 + self.sfp(prm_y[:, i, 1:])], dim = -1), dim = -1)
-            
+            t = torch.cumsum(torch.cat([prm_t[:, i, 0][..., None], 1e-3 + self.sfp(prm_t[:, i, 1:])], dim = -1), dim = -1)
+            y = torch.cumsum(torch.cat([prm_y[:, i, 0][..., None], 1e-3 + self.sfp(prm_y[:, i, 1:])], dim = -1), dim = -1)
+
             h  = t[:, 1:] - t[:, :-1]
             df = (y[:, 1:] - y[:, :-1])/h
 
             di = df[:, :-1]*df[:, 1:]/((y[:, 2:] - y[:, :-2])/(t[:, 2:] - t[:, :-2]))
-            d1 = torch.unsqueeze(torch.pow(df[:, 0], 2)/((y[:, 2] - y[:, 0])/(t[:, 2] - t[:, 0])), dim = -1)
-            dn = torch.unsqueeze(torch.pow(df[:, -1], 2)/((y[:, -1] - y[:, -3])/(t[:, -1] - t[:, -3])), dim = -1)
+            d = torch.cat([self.ones.expand(di.shape[0], -1), di, self.ones.expand(di.shape[0], -1)], dim = -1)
 
-            d = torch.cat([d1, di, dn], dim = -1)
- 
-            self.spline_block.set(torch.unsqueeze(t, dim = 1), torch.unsqueeze(y, dim = 1), torch.unsqueeze(d, dim = 1))
+            self.spline_block.set(t[:, None], y[:, None], d[:, None])
             p = self.spline_block.backward(p)
 
         return p
@@ -418,24 +409,20 @@ class Model(nn.Module):
 
         for i in range(self.nblocks):
 
-            t = torch.cumsum(torch.cat([torch.unsqueeze(prm_t[:, i, 0], dim = -1), 1e-3 + self.sfp(prm_t[:, i, 1:])], dim = -1), dim = -1)
-            y = torch.cumsum(torch.cat([torch.unsqueeze(prm_y[:, i, 0], dim = -1), 1e-3 + self.sfp(prm_y[:, i, 1:])], dim = -1), dim = -1)
+            t = torch.cumsum(torch.cat([prm_t[:, i, 0][..., None], 1e-3 + self.sfp(prm_t[:, i, 1:])], dim = -1), dim = -1)
+            y = torch.cumsum(torch.cat([prm_y[:, i, 0][..., None], 1e-3 + self.sfp(prm_y[:, i, 1:])], dim = -1), dim = -1)
 
             h  = t[:, 1:] - t[:, :-1]
             df = (y[:, 1:] - y[:, :-1])/h
 
             di = df[:, :-1]*df[:, 1:]/((y[:, 2:] - y[:, :-2])/(t[:, 2:] - t[:, :-2]))
-            d1 = torch.unsqueeze(torch.pow(df[:, 0], 2)/((y[:, 2] - y[:, 0])/(t[:, 2] - t[:, 0])), dim = -1)
-            dn = torch.unsqueeze(torch.pow(df[:, -1], 2)/((y[:, -1] - y[:, -3])/(t[:, -1] - t[:, -3])), dim = -1)
-
-            d = torch.cat([d1, di, dn], dim = -1)
+            d = torch.cat([self.ones.expand(di.shape[0], -1), di, self.ones.expand(di.shape[0], -1)], dim = -1)
 
             t = t[idx]
             y = y[idx]
             d = d[idx]
 
-            self.spline_block.set(torch.unsqueeze(t, dim = 1), torch.unsqueeze(y, dim = 1), torch.unsqueeze(d, dim = 1))
-
+            self.spline_block.set(t[:, None], y[:, None], d[:, None])
             block_dt = self.spline_block.dt(f)
             log_dt = torch.log(block_dt)
 
