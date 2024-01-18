@@ -6,7 +6,7 @@ from os.path import exists, join
 from os import mkdir, listdir
 
 import sys
-from dataset import Databank, Dataset, norm, normalize, denormalize, load_training_dataset, load_test_dataset 
+from dataset import Databank, Dataset, norm, standardize, destandardize, load_training_dataset, load_test_dataset 
 import netCDF4
 
 from time import time as timef
@@ -50,9 +50,13 @@ X, Y, P,\
 time, stations,\
 valid_time = load_test_dataset(DATA_PATH)
 
-X = normalize(X, X_mean, X_std)
-Y = normalize(Y, Y_mean, Y_std)
-P = normalize(P, P_mean, P_std)
+print(X.shape)
+
+exit()
+
+X = standardize(X, X_mean, X_std)
+Y = standardize(Y, Y_mean, Y_std)
+P = standardize(P, P_mean, P_std)
 
 #########################################################
 
