@@ -8,7 +8,7 @@ from os import mkdir
 import sys
 
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from dataset import Databank, Dataset, norm, normalize, load_training_dataset, denormalize
+from dataset import Databank, Dataset, norm, load_training_dataset
 
 import json
 
@@ -37,7 +37,7 @@ match MODEL_TYPE:
     
     case "FLOW":
         from models.FLOW import Model
-        model_distribution = Model(LEAD_TIME)
+        model_distribution = Model(LEAD_TIME, nblocks = 1, nknots = 4)
     case "NORM":
         from models.NORM import Model
         model_distribution = Model(LEAD_TIME)
@@ -64,6 +64,10 @@ Y_mean, Y_std,\
 P_mean, P_std,\
 _, _,\
 time_train, time_valid = load_training_dataset(DATA_PATH, RESIDUALS)
+
+print(X.shape, vX.shape)
+
+exit()
 
 bank_training   = Databank(X, Y, P, time_train, cuda = CUDA)
 bank_validation = Databank(vX, vY, P, time_valid, cuda = CUDA)
