@@ -46,7 +46,7 @@ CUDA = torch.cuda.is_available()
 
 COST_FUNCTION = "ll"
 
-COMPUTE = True 
+COMPUTE = False 
 
 if COMPUTE:
 
@@ -212,7 +212,7 @@ if COMPUTE:
 else:
     import matplotlib.pyplot as plt
 
-    I = -np.flip(np.load("importance_relative.npy"), axis = 0)
+    I = np.flip(np.load("importance_relative.npy"), axis = 0)
     #I = I/I.sum(axis = 0)[None]
 
     print(I.mean(axis = 0))
