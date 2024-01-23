@@ -37,7 +37,7 @@ match MODEL_TYPE:
     
     case "FLOW":
         from models.FLOW import Model
-        model_distribution = Model(LEAD_TIME, nblocks = 1, nknots = 4)
+        model_distribution = Model(LEAD_TIME, nblocks = 5, nknots = 4)
     case "NORM":
         from models.NORM import Model
         model_distribution = Model(LEAD_TIME)
