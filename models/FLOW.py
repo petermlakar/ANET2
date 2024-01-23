@@ -326,10 +326,7 @@ class Model(nn.Module):
             df = (y[:, 1:] - y[:, :-1])/h
 
             di = df[:, :-1]*df[:, 1:]/((y[:, 2:] - y[:, :-2])/(t[:, 2:] - t[:, :-2]))
-            d1 = torch.unsqueeze(torch.pow(df[:, 0], 2)/((y[:, 2] - y[:, 0])/(t[:, 2] - t[:, 0])), dim = -1)
-            dn = torch.unsqueeze(torch.pow(df[:, -1], 2)/((y[:, -1] - y[:, -3])/(t[:, -1] - t[:, -3])), dim = -1)
-
-            d = torch.cat([d1, di, dn], dim = -1)
+            d = torch.cat([self.ones.expand(di.shape[0], -1), di, self.ones.expand(di.shape[0], -1)], dim = -1)
 
             self.spline_block.set(torch.unsqueeze(t, dim = 1), torch.unsqueeze(y, dim = 1), torch.unsqueeze(d, dim = 1))
 
@@ -345,7 +342,7 @@ class Model(nn.Module):
         f  = f.view((fs0, fs1))
         dt = dt.view((fs0, fs1)) 
 
-        return torch.pow(f, 2)*0.5 - dt
+        return np.log(2*np.pi)*0.5 + torch.pow(f, 2)*0.5 - dt
 
     @jit.export
     def iF(self, f):

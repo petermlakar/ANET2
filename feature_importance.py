@@ -91,7 +91,7 @@ if COMPUTE:
 
     #########################################################
 
-    BATCH_SIZE = 512
+    BATCH_SIZE = 4048
 
     #########################################################
 
@@ -106,7 +106,6 @@ if COMPUTE:
 
         models_regression.append(torch.jit.load(join(MODELS_PATH, m, "model_regression"), map_location = torch.device("cpu")))
         models_losses.append(np.loadtxt(join(MODELS_PATH, m, "Valid_loss")).min())
-        #model_distribution = model_distribution if model_distribution is not None else torch.jit.load(join(MODELS_PATH, m, "model_distribution"), map_location = torch.device("cpu"))
 
         if CUDA:
             models_regression[-1] = models_regression[-1].to("cuda:0")
@@ -118,7 +117,7 @@ if COMPUTE:
 
     i = np.where(np.array(models_losses) == np.array(models_losses).min())[0][0]
 
-    models_regression = [models_regression[i]]
+    model_regression = models_regression[i]
     models_losses = models_losses[i]
 
     print(f"Best only mode: loss -> {models_losses}")
@@ -161,13 +160,8 @@ if COMPUTE:
 
                     qtmp = q.expand(y.shape[0], y.shape[1], -1)
 
-                    f = []
-                    for model in models_regression:
-
-                        model_distribution.set_parameters(model(x, p))
-                        f.append(model_distribution.iF(qtmp))
-
-                    f = torch.stack(f, dim = 0).mean(dim = 0)
+                    model_distribution.set_parameters(model_regression(x, p))
+                    f = model_distribution.iF(qtmp)
 
                     if RESIDUALS:
                         f = (f*Y_std + (x*X_std + X_mean).mean(axis = -1)[..., None]).detach().cpu().numpy()
@@ -178,60 +172,43 @@ if COMPUTE:
                     scores.append(crps(f, y))
 
                 else:
-                    model_distribution.set_parameters(models_regression[-1](x, p))
+
+                    model_distribution.set_parameters(model_regression(x, p))
                     scores.append(model_distribution.nloglikelihood(y).detach().cpu().numpy())
 
                 if (i + 1) % 100 == 0:
                     print(f"    Computing scores on iteration {i + 1}/{len(dataset)}")
 
-        if COST_FUNCTION == "crps":
-            return np.nanmean(np.concatenate(scores, axis = 0), axis = 0)
-        else:
-            return np.nanmean(np.concatenate(scores, axis = 0), axis = 0)
+        return np.nanmean(np.concatenate(scores, axis = 0), axis = 0)
 
     baseline = generate_scores(0, np.arange(167170), X, Y, P)
 
     print("Baseline: " + "".join(list(map(lambda k: "({:.3f}) ".format(k), baseline))))
 
-
     I = np.zeros((21, 21), dtype = np.float32)
-    S = []
 
     for l in range(21):
 
         print(f"\nEstimating relative importance of lead time {l + 1}")
 
         scores = generate_scores(l, np.random.permutation(167170), X, Y, P)
+   
+        print("Score: " + " ".join(list(map(lambda l: "{:.3f}".format(l), scores))))
 
-        print("Scores: " + "".join(list(map(lambda k: "({:.3f}) ".format(k), scores))))
-
-        if COST_FUNCTION == "crps":
-            I[:, l] = np.abs(baseline - scores)/baseline
-            print(f"Importance for lead time {l + 1} = " + "".join(list(map(lambda k: "{:.3f} ".format(k), I[:, l]))))
-        else:
-            S.append(scores)
-
-    if COST_FUNCTION == "ll":
-        
-        S = np.stack(S, axis = 0)
-
-        a = S.min() - 1.0
-        b = np.abs((S[0] - a)/S[0])
-
-        for l in range(21):
-
-            I[:, l] = b*np.abs(S[0] - S[l])/(S[0] - a)
-            print(f"Importance for lead time {l + 1} = " + "".join(list(map(lambda k: "{:.3f} ".format(k), I[:, l]))))
-    
+        I[:, l] = np.abs(baseline - scores)/np.abs(baseline)
+        print(f"Importance for lead time {l + 1} = " + "".join(list(map(lambda k: "{:.3f} ".format(k), I[:, l]))))
+   
     np.save("importance", I)
 
 else:
+
+    import matplotlib
     import matplotlib.pyplot as plt
+    font = {"size"   : 24}    
+    matplotlib.rc("font", **font)
 
-    I = np.flip(np.load("importance_relative.npy"), axis = 0)
-    #I = I/I.sum(axis = 0)[None]
-
-    print(I.mean(axis = 0))
+    I = np.flip(np.load("importance_crps.npy"), axis = 0) 
+    #I = I/(I.sum(axis = 1)[:, None])
 
     for j in range(21):
         for i in range(21):
@@ -240,7 +217,19 @@ else:
 
     f, a = plt.subplots(1, dpi = 300, figsize = (10, 10))
 
-    a.imshow(I, cmap = "hot")
-    
+    img = a.imshow(I, cmap = "hot")
+    plt.colorbar(img, ax = a, shrink = 0.7125)
+
+    a.set_ylabel("Permuted lead time [Hours]")
+    a.set_xlabel("Target lead time [Hours]")
+
+    a.set_xticks(np.arange(0, 21, step = 4), labels = np.arange(0, 21, step = 4)*6)
+    a.set_yticks(np.arange(0, 21, step = 4), labels = np.flip(np.arange(0, 21, step = 4))*6)
+
+    #a.set_title("Negative log-likelihood relative importance", pad = 30)
+    a.set_title("CRPS relative importance", pad = 30)
+
     f.tight_layout()
-    f.savefig("importance.pdf", format = "pdf", bbox_inches = "tight")
+    f.savefig("importance_crps.pdf", format = "pdf", bbox_inches = "tight")
+
+
