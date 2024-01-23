@@ -38,13 +38,13 @@ match MODEL_TYPE:
     
     case "FLOW":
         from models.FLOW import Model
-        model_distribution = Model(LEAD_TIME, nblocks = 2, nknots = 5)
+        model_distribution = Model(LEAD_TIME, nblocks = 1, nknots = 4)
     case "NORM":
         from models.NORM import Model
-        model_distribution = Model(LEAD_TIME, nblocks = 1, nknots = 4)
+        model_distribution = Model(LEAD_TIME)
     case "BERN":
         from models.BERN import Model
-        model_distribution = Model(LEAD_TIME, degree = 12, monotone = True)
+        model_distribution = Model(LEAD_TIME, degree = 6, monotone = False)
     case _:
 
         print(f"Invalid model type in config {MODEL_TYPE}...\nSupported types are: FLOW, NORM, BERN")
