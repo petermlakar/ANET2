@@ -57,6 +57,30 @@ class EvaluationMetrics(ABC):
     # each member having an equal weight.
     def crps(self, y):
 
+        """
+        import properscoring as ps
+        s0, s1, s2 = y.shape
+
+        x = self.get_forecast().reshape(s0*s1*s2, 51)
+        y = y.reshape(s0*s1*s2)
+
+        
+        G = x.shape[0]//100
+        print(x.shape)
+
+        c = []
+        for i in range(G):
+            c.append(ps.crps_ensemble(y[i*100:(i + 1)*100], x[i*100:(i + 1)*100]))
+
+            if (i + 1) % 1000 == 0:
+                print(f"{(i + 1)/G}")
+        
+        c.append(ps.crps_ensemble(y[G*100:], x[G*100:]))
+        c = np.nanmean(np.concatenate(c, axis = 0).reshape(s0, s1, s2), axis = (0, 1)) 
+
+        print("CRPS according to properscoring: ", " ".join(list(map(lambda l: "{:.2f}".format(l), c))))
+        """
+
         s0, s1, s2 = y.shape
     
         x = self.get_forecast()
@@ -80,7 +104,9 @@ class EvaluationMetrics(ABC):
         c = (bin*a*np.power(p, 2) + bin*b*np.power(1.0 - p, 2)).sum(axis = -1) + (j*((y - x[..., :-1])*np.power(p, 2) + (x[..., 1:] - y)*np.power(1.0 - p, 2))).sum(axis = -1)
         c = c + (x[..., 0] - y[..., 0])*b[..., 0] + (y[..., 0] - x[..., -1])*a[..., -1]
 
-        return np.reshape(c, (s0, s1, s2))
+        c = np.reshape(c, (s0, s1, s2))
+
+        return c
 
     def quantile_loss(self, y):
 
@@ -105,11 +131,16 @@ class EvaluationMetrics(ABC):
         r = self.get_forecast()
 
         c = np.zeros(r.shape[-1] + 1, dtype = np.float32)
-        c[0]  = (y <= r[..., 0])[y_valid].sum()
-        c[-1] = (y >  r[..., -1])[y_valid].sum()
+        c[0]  = (y < r[..., 0])[y_valid].sum()
+        c[-1] = (y > r[..., -1])[y_valid].sum()
 
         for i in range(1, r.shape[-1]):
-            c[i] = np.logical_and(y >= r[..., i - 1], y < r[..., i])[y_valid].sum()
+
+            if i == r.shape[-1]:
+                c[i] = np.logical_and(y >= r[..., i - 1], y <= r[..., i])[y_valid].sum()
+            else:
+                c[i] = np.logical_and(y >= r[..., i - 1], y < r[..., i])[y_valid].sum()
+
         c = c/y_valid.sum()
 
         MRE = ((c[0] + c[-1])*(r.shape[-1] + 1)/2.0 - 1.0)*100.0
@@ -182,16 +213,17 @@ class EvaluationMetrics(ABC):
 
 class RawEnsemble(EvaluationMetrics):
 
-    def __init__(self, x):
-        super().__init__("", "Raw ensemble")
+    def __init__(self, x, model_altitude, station_altitude, temperature_correction = True):
+        super().__init__("", "ECMWF")
 
-        self.x = x
+        c = (0.6*(model_altitude - station_altitude)/100.0)[:, None, None, None]
+        self.x = np.sort(x, axis = -1) if not temperature_correction else np.sort(x + c, axis = -1)
 
     def load(self):
         pass
 
     def get_forecast_median(self):
-        return np.median(x, axis = -1)
+        return np.median(self.x, axis = -1)
 
 class ANET2(EvaluationMetrics):
 
@@ -222,7 +254,14 @@ class EMOS(EvaluationMetrics):
         super().__init__(path, name)
 
     def load(self):
-        self.x = xr.open_dataset(self.path)["t2m"].to_numpy()
+        self.x = xr.open_dataset(self.path)["t2m"]
+
+        print(self.x.coords)
+
+        self.x = self.x.to_numpy()
+
+        exit()
+
         self.sort_members()
 
     def get_forecast_median(self):
@@ -257,13 +296,16 @@ class DVINE(EvaluationMetrics):
     def get_forecast_median(self):
         return self.x[:, :, :, self.x.shape[-1]//2]
 
-def initialize_model(model):
+def initialize_model(model, x = None, model_altitude = None, station_altitude = None):
 
     path = model["path"]
     name = model["name"]
 
     match model["type"]:
-        
+
+        case "ECMWF":
+            return RawEnsemble(x, model_altitude, station_altitude)
+
         case "ANET2":
             return ANET2(path, name)
 
@@ -296,7 +338,7 @@ alt, lat, lon = P[:, 1], P[:, 2], P[:, 3]
 
 #########################################################
 
-MODELS = [initialize_model(x) for x in MODELS]
+MODELS = [initialize_model(x, X, alt_m, alt) for x in MODELS]
 for m in MODELS:
     m.load()
 
@@ -339,13 +381,13 @@ with open(join(OUTPUT_PATH, "stats.txt"), "w") as f:
 
 #########################################################
 
-PLOT_PIT  = True
-PLOT_CRPS = True
-PLOT_BIAS = True
-PLOT_CRPS_PER_STATION = True
-PLOT_QSS = True
-PLOT_QSS_ALT = True
-PLOT_CSS_ALT = True
+PLOT_PIT  = True 
+PLOT_CRPS = False
+PLOT_BIAS = False
+PLOT_CRPS_PER_STATION = False
+PLOT_QSS = False
+PLOT_QSS_ALT = False
+PLOT_CSS_ALT = False 
 PLOT_SHARPNESS = True
 
 #########################################################
@@ -396,8 +438,6 @@ if PLOT_PIT:
         pit_plots[i][0].savefig(join(OUTPUT_PATH, f"PIT_{MODELS[i].get_name()}.pdf"), bbox_inches = "tight", format = "pdf")
         plt.close(pit_plots[i][0])
 
-exit()
-
 #########################################################
 
 if PLOT_CRPS:
@@ -435,7 +475,7 @@ if PLOT_BIAS:
         a.set_xlabel("Lead time [6 hours]")
         a.set_ylabel("Bias [Temperature in K]")
 
-    a.set_ylim(-0.5, 0.5)
+    a.set_ylim(-0.25, 0.25)
     a.grid()
     a.set_aspect((a.get_xlim()[1] - a.get_xlim()[0])/(a.get_ylim()[1] - a.get_ylim()[0]))
 
@@ -576,9 +616,6 @@ if PLOT_CSS_ALT:
     idx = np.argsort(alt)
     alt = alt[idx]
 
-    #ens = RawEnsemble(np.sort(X[idx], axis = -1))
-    #ens_crps = ens.crps(Y[idx])
-
     crps_reference = np.nanmean(crps[0][idx], axis = (1, 2))
 
     f, a = plt.subplots(1, figsize = (10, 10), dpi = 300)
@@ -615,65 +652,79 @@ if PLOT_SHARPNESS:
             ymin = s[coverage]["whislo"] if ymin is None or s[coverage]["whislo"] < ymin else ymin
             ymax = s[coverage]["whishi"] if ymax is None or s[coverage]["whishi"] > ymax else ymax
 
+    for i, s in enumerate(shrp): 
 
-    f, ax = plt.subplots(2, 3, dpi = 300, figsize = (30, 30))
+        f, a = plt.subplots(1, dpi = 300, figsize = (10, 10))
 
-    for j, coverage in enumerate([0.5, 0.88, 0.96]): 
+        a.set_title(MODELS[i].get_name()) 
 
-        a = ax[0, j]
+        y_ticks = [0]
 
-        pos = np.arange(1, len(MODELS) + 1, step = 1)
-        wdt = 0.25
+        for j, coverage in enumerate([0.5, 0.88, 0.96]): 
 
-        for i, s in enumerate(shrp): 
+            scvr = s[coverage]
+            scvr["label"] = " {}%".format(int(coverage*100))
 
-            s = s[coverage]
-            s["label"] = MODELS[i].get_name()
+            pos = np.arange(1, 4)
+            wdt = 0.25
+            y_ticks.append(scvr["med"])
 
-            bplt = a.bxp([s], [pos[i]], wdt, showfliers = False, patch_artist = True)
-
-            for patch in bplt["boxes"]:
-                patch.set_facecolor(colors[i])
-
-        #a.set_ylim(ymin - 0.1, ymax + 0.1)
-        a.set_aspect((a.get_xlim()[1] - a.get_xlim()[0])/(a.get_ylim()[1] - a.get_ylim()[0]))
-        a.set_title(f"Centered {int(coverage*100)}% interval coverage")
-
-        if j == 1:
-            a.set_xlabel("Models")
-
-        if j == 0:
-            a.set_ylabel("Coverage interval length [K]")
-
-    for j, coverage in enumerate([0.5, 0.88, 0.96]): 
-
-        a = ax[1, j]
-
-        pos = np.arange(1, len(MODELS) + 1, step = 1)
-        wdt = 0.25
-
-        for i, s in enumerate(shrp_comp): 
-
-            s = s[coverage]
-            s["label"] = MODELS[i].get_name()
-
-            bplt = a.bxp([s], [pos[i]], wdt, showfliers = False, patch_artist = True)
+            a.hlines(scvr["med"], 0.5, pos[j], linestyle = "dashed", linewidth = 1, label = f"{int(coverage*100)}% median: " + "{:.2f}".format(scvr["med"]), color = "orange")
+            bplt = a.bxp([scvr], [pos[j]], wdt, showfliers = False, patch_artist = True)
 
             for patch in bplt["boxes"]:
                 patch.set_facecolor(colors[i])
 
-        #a.set_ylim(ymin - 0.1, ymax + 0.1)
-        a.set_aspect((a.get_xlim()[1] - a.get_xlim()[0])/(a.get_ylim()[1] - a.get_ylim()[0]))
-        a.set_title(f"Composite {int(coverage*100)}% interval coverage")
+            a.set_aspect((a.get_xlim()[1] - a.get_xlim()[0])/(a.get_ylim()[1] - a.get_ylim()[0]))
 
-        if j == 1:
-            a.set_xlabel("Models")
+        a.set_xlim(0.5, None)
+        y_ticks.append(np.ceil(ymax))
+        a.set_yticks(y_ticks)
 
-        if j == 0:
+        if i == 1:
+            a.set_xlabel("Central coverage interval [percentage]")
+        if i == 0:
             a.set_ylabel("Coverage interval length [K]")
+        #a.legend(prop={"size": 20})
 
+        f.tight_layout()
+        f.savefig(join(OUTPUT_PATH, f"cnt_shrp_{MODELS[i].get_name()}.pdf"), bbox_inches = "tight", format = "pdf")
 
+    for i, s in enumerate(shrp_comp): 
 
-    f.tight_layout()
-    f.savefig(join(OUTPUT_PATH, f"sharpness.pdf"), bbox_inches = "tight", format = "pdf")
+        f, a = plt.subplots(1, dpi = 300, figsize = (10, 10))
+
+        a.set_title(MODELS[i].get_name()) 
+
+        y_ticks = [0]
+
+        for j, coverage in enumerate([0.5, 0.88, 0.96]): 
+
+            scvr = s[coverage]
+            scvr["label"] = " {}%".format(int(coverage*100))
+
+            pos = np.arange(1, 4)
+            wdt = 0.25
+            y_ticks.append(scvr["med"])
+
+            a.hlines(scvr["med"], 0.5, pos[j], linestyle = "dashed", linewidth = 1, label = f"{int(coverage*100)}% median: " + "{:.2f}".format(scvr["med"]), color = "orange")
+            bplt = a.bxp([scvr], [pos[j]], wdt, showfliers = False, patch_artist = True)
+
+            for patch in bplt["boxes"]:
+                patch.set_facecolor(colors[i])
+
+            a.set_aspect((a.get_xlim()[1] - a.get_xlim()[0])/(a.get_ylim()[1] - a.get_ylim()[0]))
+
+        a.set_xlim(0.5, None)
+        y_ticks.append(np.ceil(ymax))
+        a.set_yticks(y_ticks)
+        a.set_xlabel("Composite coverage interval [percentage]")
+
+        if i == 0:
+            a.set_ylabel("Coverage interval length [K]")
+        #a.legend(prop={"size": 20})
+
+        f.tight_layout()
+        f.savefig(join(OUTPUT_PATH, f"cmp_shrp_{MODELS[i].get_name()}.pdf"), bbox_inches = "tight", format = "pdf")
+
 

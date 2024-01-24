@@ -52,8 +52,6 @@ valid_time = load_test_dataset(DATA_PATH)
 
 print(X.shape)
 
-exit()
-
 X = standardize(X, X_mean, X_std)
 Y = standardize(Y, Y_mean, Y_std)
 P = standardize(P, P_mean, P_std)
@@ -102,8 +100,8 @@ nbins = 51
 P = np.zeros(Y.shape + (nbins,), dtype = np.float32)
 ENS_C = np.zeros(X.shape, dtype = np.float32)
 
-qstep = 1.0/(nbins + 1)
-q = torch.arange(qstep, 1.0, step = qstep, dtype = torch.float32)
+qstep = 0.98/(nbins - 2)
+q = torch.linspace(0.01, 0.99, nbins, dtype = torch.float32)
 q = torch.reshape(q, (1, 1, q.shape[0]))
 q = q.cuda() if CUDA else q
 

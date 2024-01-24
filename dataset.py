@@ -227,7 +227,6 @@ def load_test_dataset(path):
     P = np.stack([P_alt_md, P_alt_st, P_lat_st, P_lon_st], axis = 1)
 
     X = np.squeeze(X.to_numpy())
-
     T = np.zeros((1, len(time)), dtype = np.float32)
 
     for i, t in enumerate(time):
