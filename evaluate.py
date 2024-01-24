@@ -79,6 +79,7 @@ class EvaluationMetrics(ABC):
         c = np.nanmean(np.concatenate(c, axis = 0).reshape(s0, s1, s2), axis = (0, 1)) 
 
         print("CRPS according to properscoring: ", " ".join(list(map(lambda l: "{:.2f}".format(l), c))))
+        exit()
         """
 
         s0, s1, s2 = y.shape
@@ -86,7 +87,7 @@ class EvaluationMetrics(ABC):
         x = self.get_forecast()
         y = y[..., None]
 
-        p = np.arange(1.0/x.shape[-1], 1.0, step = 1.0/x.shape[-1])[None]
+        p = np.linspace(0.01, 0.99, x.shape[-1])[None, :-1]
 
         x = np.reshape(x, (s0*s1*s2, x.shape[-1]))
         y = np.reshape(y, (s0*s1*s2, y.shape[-1]))
@@ -106,6 +107,10 @@ class EvaluationMetrics(ABC):
 
         c = np.reshape(c, (s0, s1, s2))
 
+        print(f"My CRPS: ", np.nanmean(c, axis = (0, 1)))
+
+        exit()
+
         return c
 
     def quantile_loss(self, y):
@@ -115,7 +120,7 @@ class EvaluationMetrics(ABC):
 
         ql = y - q
 
-        t = np.arange(1.0/(q.shape[-1] + 1), 1.0, step = 1.0/(q.shape[-1] + 1)).reshape((1, 1, 1, ql.shape[-1]))
+        t = np.linspce(0.01, 0.99, q.shape[-1])
         t = np.tile(t, (ql.shape[0], ql.shape[1], ql.shape[2], 1))
 
         i0 = ql <  0.0
@@ -254,13 +259,7 @@ class EMOS(EvaluationMetrics):
         super().__init__(path, name)
 
     def load(self):
-        self.x = xr.open_dataset(self.path)["t2m"]
-
-        print(self.x.coords)
-
-        self.x = self.x.to_numpy()
-
-        exit()
+        self.x = xr.open_dataset(self.path)["t2m"].to_numpy()
 
         self.sort_members()
 
@@ -382,12 +381,12 @@ with open(join(OUTPUT_PATH, "stats.txt"), "w") as f:
 #########################################################
 
 PLOT_PIT  = True 
-PLOT_CRPS = False
-PLOT_BIAS = False
-PLOT_CRPS_PER_STATION = False
-PLOT_QSS = False
-PLOT_QSS_ALT = False
-PLOT_CSS_ALT = False 
+PLOT_CRPS = True
+PLOT_BIAS = True
+PLOT_CRPS_PER_STATION = True
+PLOT_QSS = True
+PLOT_QSS_ALT = True
+PLOT_CSS_ALT = True
 PLOT_SHARPNESS = True
 
 #########################################################
@@ -543,7 +542,9 @@ if PLOT_QSS:
     qloss_reference = np.reshape(qloss[0], (np.prod(qloss[0].shape[:-1]), qloss[0].shape[-1]))
     qloss_reference = np.nanmean(qloss_reference, axis = 0)
 
-    quantile_levels = np.arange(1.0/(qloss_reference.shape[-1] + 1), 1.0, step = 1.0/(qloss_reference.shape[-1] + 1))
+    quantile_levels = np.linspace(0.01, 0.99, qloss_reference.shape[0])
+
+    print(f"QSS reference shape: {qloss_reference.shape}")
 
     for i, q in enumerate(qloss):
     
@@ -578,7 +579,7 @@ if PLOT_QSS_ALT:
         idx = np.logical_and(alt >= min_alt, alt < max_alt)
 
         qloss_reference = np.nanmean(qloss[0][idx], axis = (0, 1, 2))
-        quantile_levels = np.arange(1.0/(qloss_reference.shape[-1] + 1), 1.0, step = 1.0/(qloss_reference.shape[-1] + 1))
+        quantile_levels = np.linspace(0.01, 0.99, qloss_reference.shape[0])
 
         f, a = plt.subplots(1, figsize = (10, 10), dpi = 300)
         a.grid()

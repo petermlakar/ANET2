@@ -100,7 +100,6 @@ nbins = 51
 P = np.zeros(Y.shape + (nbins,), dtype = np.float32)
 ENS_C = np.zeros(X.shape, dtype = np.float32)
 
-qstep = 0.98/(nbins - 2)
 q = torch.linspace(0.01, 0.99, nbins, dtype = torch.float32)
 q = torch.reshape(q, (1, 1, q.shape[0]))
 q = q.cuda() if CUDA else q
