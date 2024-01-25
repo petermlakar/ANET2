@@ -52,66 +52,73 @@ class EvaluationMetrics(ABC):
     def median_absolute_error(self, y):
         return np.abs(self.get_forecast_median() - y)
 
-    # Continuous ranked probability score estimation based on Hersbach 2000, where the model forecast,
-    # be it quantiles or samples form the predictive distribution, is treated as an ensemble forecast,
-    # each member having an equal weight.
+    # Continuous ranked probability score estimation based on Hersbach 2000
     def crps(self, y):
-
-        """
-        import properscoring as ps
-        s0, s1, s2 = y.shape
-
-        x = self.get_forecast().reshape(s0*s1*s2, 51)
-        y = y.reshape(s0*s1*s2)
-
-        
-        G = x.shape[0]//100
-        print(x.shape)
-
-        c = []
-        for i in range(G):
-            c.append(ps.crps_ensemble(y[i*100:(i + 1)*100], x[i*100:(i + 1)*100]))
-
-            if (i + 1) % 1000 == 0:
-                print(f"{(i + 1)/G}")
-        
-        c.append(ps.crps_ensemble(y[G*100:], x[G*100:]))
-        c = np.nanmean(np.concatenate(c, axis = 0).reshape(s0, s1, s2), axis = (0, 1)) 
-
-        print("CRPS according to properscoring: ", " ".join(list(map(lambda l: "{:.2f}".format(l), c))))
-        exit()
-        """
 
         s0, s1, s2 = y.shape
     
         x = self.get_forecast()
         y = y[..., None]
 
-        p = np.linspace(0.01, 0.99, x.shape[-1])[None, :-1]
+        # Quantile levels for each input quantiles,
+        # treating the quantiles as ensemble members with
+        # equal weights, P_2 - P_1 = P_2 - P_1 = ...
+        # where P denoted the for this empirical distribution
+        step = 1.0/x.shape[-1]
+        p = np.arange(step, 1.0, step = step)
 
         x = np.reshape(x, (s0*s1*s2, x.shape[-1]))
         y = np.reshape(y, (s0*s1*s2, y.shape[-1]))
 
+        # Length of the quantile intervals
+        # bin[j] =  [x_2 - x_1, x_3 - x_2, ...]
         bin = x[..., 1:] - x[..., :-1]
         
+        # Alpha values to determine bin widths
+        # 0 < i < N, where N denotes the number of forecasts
+        #
+        # Alpha, excluding outliers, is defined as:
+        #
+        # y > x_(i + 1)       => alpha_i = x_(i + 1) - x_i // y is bigger than the upper bound of this bin
+        # x_(i + 1) > y > x_i => alpha_i = y - x_i         // y lies inside the bin
+        # y < x_i             => alpha_i = 0               // y is smaller than the lower bound of this bin
+        # 
+        # Example of a: a[j] = [1,   1,   1,   0,   0,   0,   0]
+        #                      [x_2, x_3, x_4, x_5, x_6, x_7, x_8]
         a = y > x[..., 1:]
+
+        # Beta, excluding outliers, is defined as:
+        #
+        # y > x_(i + 1)       => beta_i = 0               // y is bigger than the upper bound of this bin
+        # x_(i + 1) > y > x_i => beta_i = x_(i + 1) - y   // y lies inside the bin
+        # y < x_i             => beta_i = x_(i + 1) - x_i // y is smaller than the lower bound of this bin
+        # 
+        # Example of a: b[j] = [0,   0,   0,   0,   1,   1,   1]
+        #                      [x_1, x_2, x_3, x_4, x_5, x_6, x_7]
         b = y < x[..., :-1]
+
+        # Find all the bins that contain y
+        # ~a[j] and ~b[j] = [0,   0,   0,   1,   0,   0,   0]
+        # In case of an outlier this becomes a zero vector, while either a or b contains all zeros and the remaining all ones
         j = np.logical_and(~a, ~b)
 
         a = a.astype(np.float32)
         b = b.astype(np.float32)
         j = j.astype(np.float32)
 
-        c = (bin*a*np.power(p, 2) + bin*b*np.power(1.0 - p, 2)).sum(axis = -1) + (j*((y - x[..., :-1])*np.power(p, 2) + (x[..., 1:] - y)*np.power(1.0 - p, 2))).sum(axis = -1)
-        c = c + (x[..., 0] - y[..., 0])*b[..., 0] + (y[..., 0] - x[..., -1])*a[..., -1]
+        # Add all the bin contributions where y lies completelly outside the bin
+        #
+        # c[j] = a_1*(x_2 - x_1)*p_1^2 + a_2*(x_3 - x_2)*p_2^2 + a_3*(x_4 - x_3)*p_3^2 + a_4*(x_5 - x_4)*p_4^2 + ... +
+        #        b_5*(x_6 - x_5)*p_5^2 + b_6*(x_7 - x_6)*p_6^2 + b_7*(x_8 - x_7)*p_7^2
+        c = (bin*a*np.power(p, 2) + bin*b*np.power(1.0 - p, 2)).sum(axis = -1)
 
-        c = np.reshape(c, (s0, s1, s2))
+        # We handle the case where y lies inside an interval
+        c += (j*((y - x[..., :-1])*np.power(p, 2) + (x[..., 1:] - y)*np.power(1.0 - p, 2))).sum(axis = -1)
 
-        print(f"My CRPS: ", np.nanmean(c, axis = (0, 1)))
+        # Finall, add outlier contributions
+        c += (x[..., 0] - y[..., 0])*b[..., 0] + (y[..., 0] - x[..., -1])*a[..., -1]
 
-        exit()
-
-        return c
+        return np.nanmean(np.reshape(c, (s0, s1, s2)), axis = (0, 1))
 
     def quantile_loss(self, y):
 
