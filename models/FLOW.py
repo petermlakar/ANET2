@@ -3,6 +3,8 @@ import torch.nn as nn
 import torch.jit as jit
 import numpy as np
 
+import math
+
 class SplineBlock(nn.Module):
 
     def  __init__(self):
@@ -238,8 +240,10 @@ class Model(nn.Module):
 
         self.lead_time = lead_time
 
+        self.pi = math.pi
+
         self.sqrt2   = torch.sqrt(torch.tensor(2.0, dtype = torch.float32))
-        self.sqrt2pi = torch.sqrt(torch.tensor(2.0, dtype = torch.float32)*np.pi)
+        self.sqrt2pi = torch.sqrt(torch.tensor(2.0, dtype = torch.float32)*self.pi)
         self.sfp = nn.Softplus()
     
         self.nblocks = nblocks
@@ -342,7 +346,7 @@ class Model(nn.Module):
         f  = f.view((fs0, fs1))
         dt = dt.view((fs0, fs1)) 
 
-        return np.log(2*np.pi)*0.5 + torch.pow(f, 2)*0.5 - dt
+        return torch.log(2*self.pi)*0.5 + torch.pow(f, 2)*0.5 - dt
 
     @jit.export
     def iF(self, f):
