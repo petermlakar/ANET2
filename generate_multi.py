@@ -68,11 +68,15 @@ models_losses = []
 models_regression  = []
 model_distribution = None
 
+tot_train_epochs = 0
+
 for m in listdir(MODELS_PATH):
 
     models_regression.append(torch.jit.load(join(MODELS_PATH, m, "model_regression")))
     models_losses.append(np.loadtxt(join(MODELS_PATH, m, "Valid_loss")).min())
     model_distribution = model_distribution if model_distribution is not None else torch.jit.load(join(MODELS_PATH, m, "model_distribution"))
+
+    tot_train_epochs += np.loadtxt(join(MODELS_PATH, m, "Valid_loss")).shape[0]
 
     if CUDA:
         models_regression[-1] = models_regression[-1].to("cuda:0")
@@ -90,6 +94,8 @@ if BEST_MODEL_ONLY:
     models_losses = models_losses[i]
 
     print(f"Best only mode: loss -> {models_losses}")
+
+print("Avg number of epoch trained: ", tot_train_epochs/len(listdir(MODELS_PATH)))
 
 #########################################################
 
