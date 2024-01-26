@@ -43,7 +43,7 @@ match MODEL_TYPE:
         model_distribution = Model(LEAD_TIME)
     case "BERN":
         from models.BERN import Model
-        model_distribution = Model(LEAD_TIME, degree = 12, monotone = True)
+        model_distribution = Model(LEAD_TIME, degree = 8, monotone = True)
     case _:
 
         print(f"Invalid model type in config {MODEL_TYPE}...\nSupported types are: FLOW, NORM, BERN")

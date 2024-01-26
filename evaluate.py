@@ -29,7 +29,7 @@ class EvaluationMetrics(ABC):
         self.name = name
 
     @abstractmethod
-    def load(self):
+    def load(self, raw_forecast):
         pass
 
     @abstractmethod
@@ -54,6 +54,28 @@ class EvaluationMetrics(ABC):
 
     # Continuous ranked probability score estimation based on Hersbach 2000
     def crps(self, y):
+
+        """
+        import properscoring as ps
+        s0, s1, s2 = y.shape
+
+        x = self.get_forecast().reshape(s0*s1*s2, 51)
+        y = y.reshape(s0*s1*s2)
+        
+        G = x.shape[0]//100
+
+        c = []
+        for i in range(G):
+            c.append(ps.crps_ensemble(y[i*100:(i + 1)*100], x[i*100:(i + 1)*100]))
+
+            if (i + 1) % 10000 == 0:
+                print(f"{(i + 1)/G}")
+        
+        c.append(ps.crps_ensemble(y[G*100:], x[G*100:]))
+        c = np.concatenate(c, axis = 0).reshape(s0, s1, s2)
+
+        return c
+        """
 
         s0, s1, s2 = y.shape
     
@@ -118,7 +140,7 @@ class EvaluationMetrics(ABC):
         # Finall, add outlier contributions
         c += (x[..., 0] - y[..., 0])*b[..., 0] + (y[..., 0] - x[..., -1])*a[..., -1]
 
-        return np.nanmean(np.reshape(c, (s0, s1, s2)), axis = (0, 1))
+        return np.reshape(c, (s0, s1, s2))
 
     def quantile_loss(self, y):
 
@@ -127,7 +149,7 @@ class EvaluationMetrics(ABC):
 
         ql = y - q
 
-        t = np.linspce(0.01, 0.99, q.shape[-1])
+        t = np.linspace(0.01, 0.99, q.shape[-1])
         t = np.tile(t, (ql.shape[0], ql.shape[1], ql.shape[2], 1))
 
         i0 = ql <  0.0
@@ -138,7 +160,7 @@ class EvaluationMetrics(ABC):
 
         return ql
 
-    def pit(self, y, y_valid):
+    def pit(self, y, y_valid, edges_prob_mass = None):
 
         r = self.get_forecast()
 
@@ -153,10 +175,22 @@ class EvaluationMetrics(ABC):
             else:
                 c[i] = np.logical_and(y >= r[..., i - 1], y < r[..., i])[y_valid].sum()
 
+        """
         c = c/y_valid.sum()
 
-        MRE = ((c[0] + c[-1])*(r.shape[-1] + 1)/2.0 - 1.0)*100.0
+        mass = 1/(r.shape[-1] + 1) if not edges_prob_mass else edges_prob_mass
 
+        MRE = ((c[0] + c[-1])/(mass*2.0) - 1.0)*100.0
+
+        return {"MRE": MRE, "pit": c}
+        """
+
+        c_tot = y_valid.sum()
+
+        mass = 1/(r.shape[-1] + 1) if not edges_prob_mass else edges_prob_mass
+        MRE = ((c[0] + c[-1])/(c_tot*mass*2.0) - 1.0)*100.0
+
+        c = c/y_valid.sum()
         return {"MRE": MRE, "pit": c}
 
     def bias(self, y):
@@ -194,18 +228,19 @@ class EvaluationMetrics(ABC):
         return res 
 
     # Composite intervals sharpness as defined in Bremnes 2019
-    def sharpness_composite(self, p = [0.5, 0.88, 0.96]):
+    def sharpness_composite(self, p = [0.5, 0.88, 0.96], probability_mass = None):
         
         x = self.get_forecast()
         n = x.shape[-1]
 
-        i = 1.0/(1.0 + n)
+        i = 1.0/(1.0 + n) if not probability_mass else probability_mass
 
         res = {}
 
         for coverage in p:
 
             y = int(np.ceil(coverage/i))
+
             d = np.sort(x[..., 1:] - x[..., :-1], axis = -1)[..., :y].sum(axis = -1).flatten()
             d = d[~np.isnan(d)]
 
@@ -228,10 +263,14 @@ class RawEnsemble(EvaluationMetrics):
     def __init__(self, x, model_altitude, station_altitude, temperature_correction = True):
         super().__init__("", "ECMWF")
 
-        c = (0.6*(model_altitude - station_altitude)/100.0)[:, None, None, None]
+        c = (0.65*(model_altitude - station_altitude)/100.0)[:, None, None, None]
         self.x = np.sort(x, axis = -1) if not temperature_correction else np.sort(x + c, axis = -1)
 
-    def load(self):
+        self.x.astype(np.float64)
+
+        print("Ensamble spread: ", np.mean(np.var(self.x, axis = -1), axis = (0, 1)))
+
+    def load(self, raw_forecast):
         pass
 
     def get_forecast_median(self):
@@ -242,7 +281,7 @@ class ANET2(EvaluationMetrics):
     def __init__(self, path, name):
         super().__init__(path, name)
 
-    def load(self):
+    def load(self, raw_forecast):
         self.x = np.load(self.path)
 
     def get_forecast_median(self):
@@ -253,7 +292,7 @@ class ANET1(EvaluationMetrics):
     def __init__(self, path, name):
         super().__init__(path, name)
 
-    def load(self):
+    def load(self, raw_forecast):
         self.x = xr.open_dataset(self.path)["t2m"].to_numpy()
         self.sort_members()
 
@@ -265,39 +304,12 @@ class EMOS(EvaluationMetrics):
     def __init__(self, path, name):
         super().__init__(path, name)
 
-    def load(self):
+    def load(self, raw_forecast):
         self.x = xr.open_dataset(self.path)["t2m"].to_numpy()
+
+        self.x[np.isnan(self.x)] = raw_forecast[np.isnan(self.x)]
 
         self.sort_members()
-
-    def get_forecast_median(self):
-        return self.x[:, :, :, self.x.shape[-1]//2]
-
-    def pit(self, y, y_valid):
-        
-        r = self.get_forecast()
-
-        valid = np.logical_and(np.logical_not(np.all(np.isnan(r), axis = -1)), y_valid)
-
-        c = np.zeros(r.shape[-1] + 1, dtype = np.float32)
-        c[0]  = (y <= r[..., 0])[valid].sum()
-        c[-1] = (y >  r[..., -1])[valid].sum()
-
-        for i in range(1, r.shape[-1]):
-            c[i] = np.logical_and(y >= r[..., i - 1], y < r[..., i])[valid].sum()
-        c = c/valid.sum()
-
-        MRE = ((c[0] + c[-1])*(r.shape[-1] + 1)/2.0 - 1.0)*100.0
-
-        return {"MRE": MRE, "pit": c}
-
-class DVINE(EvaluationMetrics):
-    
-    def __init__(self, path, name):
-        super().__init__(path, name)
-
-    def load(self):
-        self.x = xr.open_dataset(self.path)["t2m"].to_numpy()
 
     def get_forecast_median(self):
         return self.x[:, :, :, self.x.shape[-1]//2]
@@ -346,14 +358,16 @@ alt, lat, lon = P[:, 1], P[:, 2], P[:, 3]
 
 MODELS = [initialize_model(x, X, alt_m, alt) for x in MODELS]
 for m in MODELS:
-    m.load()
+    m.load(X)
 
 #########################################################
 
 y_valid = np.logical_not(np.isnan(Y))
 
-pit       = [m.pit(Y, y_valid)       for m in MODELS]
-shrp_comp = [m.sharpness_composite() for m in MODELS]
+probability_mass = np.diff(np.linspace(0.01, 0.99, X.shape[-1], dtype = np.float32))[0]
+
+pit       = [m.pit(Y, y_valid, edges_prob_mass = 0.01)       for m in MODELS]
+shrp_comp = [m.sharpness_composite(probability_mass = probability_mass) for m in MODELS]
 shrp      = [m.sharpness()           for m in MODELS]
 mae   = [m.median_absolute_error(Y)  for m in MODELS]
 crps  = [m.crps(Y)                   for m in MODELS]
@@ -415,25 +429,30 @@ if PLOT_PIT:
     font = {"size"   : 30}    
     matplotlib.rc("font", **font)
 
+    prob_mass = np.diff(np.linspace(0.01, 0.99, X.shape[-1], dtype = np.float32))[0]
+
     for i, p in enumerate(pit):
 
-        pit_plots.append((plt.subplots(1, figsize = (10, 10), dpi = 300)))
+        pit_plots.append(plt.subplots(1, figsize = (10, 10), dpi = 300))
 
         nbins = p["pit"].shape[0]
 
-        c = pit_plots[i][1].hist(np.arange(1, nbins + 1), weights = p["pit"], bins = np.arange(1, 54), label = "{}\nMRE: {:.2f}%".format(MODELS[i].get_name(), p["MRE"]), color = colors[i], edgecolor = "black")
-        c = c[0]
+        c = pit_plots[i][1].hist(np.arange(1, nbins + 1), weights = p["pit"], bins = nbins, label = "{}\nMRE: {:.2f}%".format(MODELS[i].get_name(), p["MRE"]), color = colors[i], edgecolor = "white")
 
-        pit_plots[i][1].hlines(1.0/nbins, 1, nbins, color = "black", linestyle = "dashed")
-        pit_max = pit_max if c.max() < pit_max else c.max()
+        pit_plots[i][1].hlines(prob_mass, 2, nbins - 1, color = "black", linestyle = "dashed")
+        pit_plots[i][1].hlines(0.01, 1, 2, color = "black")
+        pit_plots[i][1].hlines(0.01, X.shape[-1], X.shape[-1] + 1, color = "black")
 
-        #pit_plots[i][1].grid()
+        pit_max = pit_max if c[0].max() < pit_max else c[0].max()
+
         pit_plots[i][1].legend()
-
         pit_plots[i][1].set_xlabel("Bins")
-        pit_plots[i][1].set_ylabel("Density")
+
+        if i == 0:
+            pit_plots[i][1].set_ylabel("Density")
 
         pit_plots[i][1].set_xticks([5.5, 15.5, 25.5, 35.5, 45.5], labels = [5, 15, 25, 35, 45])
+
 
     for i in range(len(pit)):
 
@@ -454,7 +473,9 @@ if PLOT_CRPS:
     f, a = plt.subplots(1, figsize = (10, 10), dpi = 300)
     for i, c in enumerate(crps):
 
-        a.plot(np.nanmean(c, axis = (0, 1)), linewidth = 4, label = MODELS[i].get_name(), color = colors[i], marker = markers[i], markersize = 15)
+        c = np.nanmean(c, axis = 1)
+
+        a.plot(c.mean(axis = 0), linewidth = 4, label = MODELS[i].get_name(), color = colors[i], marker = markers[i], markersize = 15)
 
         a.set_xlabel("Lead time [6 hours]")
         a.set_ylabel("CRPS [K]")
@@ -462,7 +483,7 @@ if PLOT_CRPS:
     a.grid()
     a.legend()
     a.set_aspect((a.get_xlim()[1] - a.get_xlim()[0])/(a.get_ylim()[1] - a.get_ylim()[0]))
-
+    
     f.tight_layout()
     f.savefig(join(OUTPUT_PATH, "CRPS.pdf"), bbox_inches = "tight", format = "pdf")
     plt.close(f)
@@ -471,18 +492,22 @@ if PLOT_CRPS:
 
 if PLOT_BIAS:
 
+    from matplotlib.ticker import FormatStrFormatter
+
     f, a = plt.subplots(1, figsize = (10, 10), dpi = 300)
     a.hlines(0, 0, 21, linestyle = "dashed", color = "black")
+
+    a.yaxis.set_major_formatter(FormatStrFormatter("%.1f"))
 
     for i, c in enumerate(bias):
 
         a.plot(c, linewidth = 4, label = MODELS[i].get_name(), color = colors[i], marker = markers[i], markersize = 15)
 
         a.set_xlabel("Lead time [6 hours]")
-        a.set_ylabel("Bias [Temperature in K]")
+        a.set_ylabel("Bias [K]")
 
-    a.set_ylim(-0.25, 0.25)
     a.grid()
+    a.legend()
     a.set_aspect((a.get_xlim()[1] - a.get_xlim()[0])/(a.get_ylim()[1] - a.get_ylim()[0]))
 
     f.tight_layout()
@@ -512,11 +537,14 @@ if PLOT_CRPS_PER_STATION:
     crps_per_station_idx  = np.zeros(lat.shape[0], dtype = np.int32)
     crps_per_station_best = np.zeros(lat.shape[0], dtype = np.float32) 
 
+    crps_per_station_second_best = np.zeros(lat.shape[0], dtype = np.float32) 
+
     for i, c in enumerate(crps):
 
         if i == 0:
             crps_per_station_idx[:] = i
             crps_per_station_best[:] = np.nanmean(c, axis = (1, 2))
+            crps_per_station_second_best[:] = crps_per_station_best[:] 
         else:
             crps_now = np.nanmean(c, axis = (1, 2))
 
@@ -525,11 +553,17 @@ if PLOT_CRPS_PER_STATION:
             crps_per_station_idx[idx_now] = i
             crps_per_station_best[idx_now] = crps_now[idx_now]
 
+            idx_now = np.logical_and(crps_per_station_second_best > crps_now, crps_per_station_best < crps_now)
+            crps_per_station_second_best[idx_now] = crps_now[idx_now]
+
     for i in np.unique(crps_per_station_idx):
 
         idx = crps_per_station_idx == i
+        impr_factor = crps_per_station_second_best[idx]/crps_per_station_best[idx]
 
-        a.scatter(x = lon[idx], y = lat[idx], color = colors[i], s = 40, alpha = 0.8, transform = ccrs.PlateCarree(), label = f"{MODELS[i].get_name()}: {idx.sum()} cases", marker = markers[i], zorder = 1)
+        print(f"{MODELS[i].get_name()}: mean {impr_factor.mean()} {impr_factor.min()} {impr_factor.max()}")
+
+        a.scatter(x = lon[idx], y = lat[idx], color = colors[i], s = 50, alpha = 0.8, label = f"{MODELS[i].get_name()}: {idx.sum()} cases", marker = markers[i], zorder = 1)
 
     a.legend(fancybox = True, framealpha = 0.5, markerscale = 2)
 
@@ -580,7 +614,6 @@ if PLOT_QSS_ALT:
     font = {"size": 30}
     matplotlib.rc("font", **font)
 
-
     for (min_alt, max_alt) in [(-5, 800), (800, 2000), (2000, 3600)]:
 
         idx = np.logical_and(alt >= min_alt, alt < max_alt)
@@ -602,12 +635,14 @@ if PLOT_QSS_ALT:
             v = (1.0 - q/qloss_reference)*100.0
 
             a.plot(quantile_levels, v, color = colors[i], linewidth = 5, label = MODELS[i].get_name(), linestyle = "dashed" if i == 0 else "solid", marker = markers[i], markersize = 15, markevery = 0.1)
+            a.set_xlabel("Quantile level")
+
+            if i == 0:
+                a.set_ylabel("QSS [percentage]")
 
         a.set_aspect((a.get_xlim()[1] - a.get_xlim()[0])/(a.get_ylim()[1] - a.get_ylim()[0]))
         if (max_alt == 800):
             a.legend(loc = "best")
-        a.set_xlabel("Quantile level")
-        a.set_ylabel("QSS [percentage]")
 
         f.tight_layout()
         f.savefig(join(OUTPUT_PATH, f"qss_alt_{max_alt}.pdf"), bbox_inches = "tight", format = "pdf")
@@ -621,8 +656,12 @@ if PLOT_CSS_ALT:
     font = {"size": 30}
     matplotlib.rc("font", **font)
 
-    idx = np.argsort(alt)
-    alt = alt[idx]
+    dif = np.abs(alt - alt_m)
+
+    print(f"Median: {np.percentile(dif, 50)} q3: {np.percentile(dif, 75)} max: {dif.max()}")
+
+    idx = np.argsort(dif)
+    dif = dif[idx]
 
     crps_reference = np.nanmean(crps[0][idx], axis = (1, 2))
 
@@ -636,11 +675,11 @@ if PLOT_CSS_ALT:
 
         v = medfilt(v, kernel_size = 15)
 
-        a.plot(alt, v, color = colors[i], linewidth = 5, label = MODELS[i].get_name(), linestyle = "dashed" if i == 0 else "solid", marker = markers[i], markersize = 15, markevery = 0.1)
+        a.plot(dif, v, color = colors[i], linewidth = 5, label = MODELS[i].get_name(), linestyle = "dashed" if i == 0 else "solid", marker = markers[i], markersize = 15, markevery = 0.1)
 
     a.set_aspect((a.get_xlim()[1] - a.get_xlim()[0])/(a.get_ylim()[1] - a.get_ylim()[0]))
-    a.set_xlabel("Station altitude\n[meters above sea level]")
-    a.set_ylabel("CRPS Skill Score [Percentage]")
+    a.set_xlabel("Absolute difference in altitude [meters]")
+    a.set_ylabel("CRPSS [Percentage]")
 
     f.tight_layout()
     f.savefig(join(OUTPUT_PATH, f"css_alt.pdf"), bbox_inches = "tight", format = "pdf")
@@ -649,90 +688,56 @@ if PLOT_CSS_ALT:
 
 if PLOT_SHARPNESS:
 
+    from matplotlib.ticker import FormatStrFormatter
+
     font = {"size": 30}
     matplotlib.rc("font", **font)
 
     ymin, ymax = None, None
 
     for coverage in [0.5, 0.88, 0.96]:
-        for s in shrp:
+        for s in shrp_comp:
 
             ymin = s[coverage]["whislo"] if ymin is None or s[coverage]["whislo"] < ymin else ymin
             ymax = s[coverage]["whishi"] if ymax is None or s[coverage]["whishi"] > ymax else ymax
 
-    for i, s in enumerate(shrp): 
+
+    for j, coverage in enumerate([0.5, 0.88, 0.96]): 
 
         f, a = plt.subplots(1, dpi = 300, figsize = (10, 10))
+        a.yaxis.set_major_formatter(FormatStrFormatter("%.1f"))
 
-        a.set_title(MODELS[i].get_name()) 
+        a.set_title(f"Composite coverage interval {int(coverage*100)}%")
+        y_ticks = [ymin]
 
-        y_ticks = [0]
-
-        for j, coverage in enumerate([0.5, 0.88, 0.96]): 
+        for i, s in enumerate(shrp_comp): 
 
             scvr = s[coverage]
-            scvr["label"] = " {}%".format(int(coverage*100))
+            scvr["label"] = MODELS[i].get_name()
 
             pos = np.arange(1, 4)
             wdt = 0.25
-            y_ticks.append(scvr["med"])
 
-            a.hlines(scvr["med"], 0.5, pos[j], linestyle = "dashed", linewidth = 1, label = f"{int(coverage*100)}% median: " + "{:.2f}".format(scvr["med"]), color = "orange")
-            bplt = a.bxp([scvr], [pos[j]], wdt, showfliers = False, patch_artist = True)
+            a.hlines(scvr["med"], 0.5, pos[i], linestyle = "dashed", linewidth = 1, color = "orange", zorder = 0)
+            bplt = a.bxp([scvr], [pos[i]], wdt, showfliers = False, patch_artist = True, zorder = 1)
 
             for patch in bplt["boxes"]:
                 patch.set_facecolor(colors[i])
 
             a.set_aspect((a.get_xlim()[1] - a.get_xlim()[0])/(a.get_ylim()[1] - a.get_ylim()[0]))
 
-        a.set_xlim(0.5, None)
-        y_ticks.append(np.ceil(ymax))
-        a.set_yticks(y_ticks)
+        #a.set_xlim(0.5, None)
+        y_ticks += [0.0, 14.0]
+        #a.set_yticks(y_ticks, fontsize = 30)
+        #a.set_ylim(0.0, 15.0)
+        a.set_aspect((a.get_xlim()[1] - a.get_xlim()[0])/(a.get_ylim()[1] - a.get_ylim()[0]))
 
-        if i == 1:
-            a.set_xlabel("Central coverage interval [percentage]")
-        if i == 0:
+        a.set_xlabel("Models")
+
+        if j == 0:
             a.set_ylabel("Coverage interval length [K]")
-        #a.legend(prop={"size": 20})
 
         f.tight_layout()
-        f.savefig(join(OUTPUT_PATH, f"cnt_shrp_{MODELS[i].get_name()}.pdf"), bbox_inches = "tight", format = "pdf")
-
-    for i, s in enumerate(shrp_comp): 
-
-        f, a = plt.subplots(1, dpi = 300, figsize = (10, 10))
-
-        a.set_title(MODELS[i].get_name()) 
-
-        y_ticks = [0]
-
-        for j, coverage in enumerate([0.5, 0.88, 0.96]): 
-
-            scvr = s[coverage]
-            scvr["label"] = " {}%".format(int(coverage*100))
-
-            pos = np.arange(1, 4)
-            wdt = 0.25
-            y_ticks.append(scvr["med"])
-
-            a.hlines(scvr["med"], 0.5, pos[j], linestyle = "dashed", linewidth = 1, label = f"{int(coverage*100)}% median: " + "{:.2f}".format(scvr["med"]), color = "orange")
-            bplt = a.bxp([scvr], [pos[j]], wdt, showfliers = False, patch_artist = True)
-
-            for patch in bplt["boxes"]:
-                patch.set_facecolor(colors[i])
-
-            a.set_aspect((a.get_xlim()[1] - a.get_xlim()[0])/(a.get_ylim()[1] - a.get_ylim()[0]))
-
-        a.set_xlim(0.5, None)
-        y_ticks.append(np.ceil(ymax))
-        a.set_yticks(y_ticks)
-        a.set_xlabel("Composite coverage interval [percentage]")
-
-        if i == 0:
-            a.set_ylabel("Coverage interval length [K]")
-        #a.legend(prop={"size": 20})
-
-        f.tight_layout()
-        f.savefig(join(OUTPUT_PATH, f"cmp_shrp_{MODELS[i].get_name()}.pdf"), bbox_inches = "tight", format = "pdf")
+        f.savefig(join(OUTPUT_PATH, f"cmp_shrp_{int(coverage*100)}.pdf"), bbox_inches = "tight", format = "pdf")
 
 

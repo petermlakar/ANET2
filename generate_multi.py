@@ -61,7 +61,6 @@ P = standardize(P, P_mean, P_std)
 BATCH_SIZE = 512
 
 bank = Databank(X, Y, P, valid_time, cuda = CUDA)
-
 dataset = Dataset(bank, bank.index, batch_size = BATCH_SIZE, train = False, cuda = CUDA)
 
 #########################################################
@@ -147,6 +146,8 @@ with torch.no_grad():
             P[j[0, :], j[1, :], :, :] = (f*Y_std + (x*X_std + X_mean).mean(axis = -1)[..., None]).detach().cpu().numpy()
         else:
             P[j[0], j[1], :, :]  = f.detach().cpu().numpy()*X_std + X_mean
+
+            print( P[j[0], j[1], :, :].min(), P[j[0], j[1], :, :].max(), x.mean())
 
     print(f"Execution time time: {timef() - start_time} seconds")
 

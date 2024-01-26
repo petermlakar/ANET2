@@ -44,9 +44,8 @@ CUDA = torch.cuda.is_available()
 
 #########################################################
 
-COST_FUNCTION = "ll"
-
-COMPUTE = False 
+COST_FUNCTION = "crps"
+COMPUTE = True
 
 if COMPUTE:
 
@@ -84,14 +83,18 @@ if COMPUTE:
     valid_time = load_test_dataset(DATA_PATH)
 
     if COST_FUNCTION == "ll":
-        Y = (Y - X.mean(axis = -1))/X_std
+
+        if RESIDUALS:
+            Y = (Y - X.mean(axis = -1))/X_std
+        else:
+            Y = standardize(Y, X_mean, X_std)
 
     X = standardize(X, X_mean, X_std)
     P = standardize(P, P_mean, P_std)
 
     #########################################################
 
-    BATCH_SIZE = 4048
+    BATCH_SIZE = 20000
 
     #########################################################
 
@@ -100,10 +103,11 @@ if COMPUTE:
 
     from models.FLOW import Model
 
-    model_distribution = Model(lead_time = 21, nblocks = 4, nknots = 5)
+    #model_distribution = Model(lead_time = 21, nblocks = 4, nknots = 5)
 
     for m in listdir(MODELS_PATH):
-
+        
+        model_distribution = torch.jit.load(join(MODELS_PATH, m, "model_distribution"), map_location = torch.device("cpu"))
         models_regression.append(torch.jit.load(join(MODELS_PATH, m, "model_regression"), map_location = torch.device("cpu")))
         models_losses.append(np.loadtxt(join(MODELS_PATH, m, "Valid_loss")).min())
 
@@ -126,9 +130,7 @@ if COMPUTE:
 
     nbins = 51
 
-    qstep = 1.0/(nbins + 1)
-    q = torch.arange(qstep, 1.0, step = qstep, dtype = torch.float32)
-    q = torch.reshape(q, (1, 1, q.shape[0]))
+    q = torch.linspace(0.01, 0.99, nbins, dtype = torch.float32)[None, None]
     q = q.cuda() if CUDA else q
 
     print(f"Number of quantiles: {q.shape} |  number of required parameters: 21x{model_distribution.number_of_outputs//21}")
@@ -198,7 +200,7 @@ if COMPUTE:
         I[:, l] = np.abs(baseline - scores)/np.abs(baseline)
         print(f"Importance for lead time {l + 1} = " + "".join(list(map(lambda k: "{:.3f} ".format(k), I[:, l]))))
    
-    np.save("importance", I)
+    np.save("importance_crps", I)
 
 else:
 
@@ -207,8 +209,7 @@ else:
     font = {"size"   : 24}    
     matplotlib.rc("font", **font)
 
-    I = np.flip(np.load("importance_crps.npy"), axis = 0) 
-    #I = I/(I.sum(axis = 1)[:, None])
+    I = np.flip(np.load("importance_crps_no_residuals.npy"), axis = 0) 
 
     for j in range(21):
         for i in range(21):
@@ -227,9 +228,9 @@ else:
     a.set_yticks(np.arange(0, 21, step = 4), labels = np.flip(np.arange(0, 21, step = 4))*6)
 
     #a.set_title("Negative log-likelihood relative importance", pad = 30)
-    a.set_title("CRPS relative importance", pad = 30)
+    a.set_title("FLOW lead time importance", pad = 30)
 
     f.tight_layout()
-    f.savefig("importance_crps.pdf", format = "pdf", bbox_inches = "tight")
+    f.savefig("importance.pdf", format = "pdf", bbox_inches = "tight")
 
 
