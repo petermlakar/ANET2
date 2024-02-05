@@ -19,6 +19,9 @@ import json
 
 from abc import ABC, abstractmethod
 
+params = {"mathtext.default": "regular"} 
+plt.rcParams.update(params)
+
 #########################################################
 
 class EvaluationMetrics(ABC):
@@ -507,7 +510,7 @@ if PLOT_BIAS:
         a.set_ylabel("Bias [K]")
 
     a.grid()
-    a.legend()
+    #a.legend()
     a.set_aspect((a.get_xlim()[1] - a.get_xlim()[0])/(a.get_ylim()[1] - a.get_ylim()[0]))
 
     f.tight_layout()
@@ -518,7 +521,7 @@ if PLOT_BIAS:
 
 if PLOT_CRPS_PER_STATION:
 
-    font = {"size"   : 24}    
+    font = {"size"   : 20}
     matplotlib.rc("font", **font)
 
     import cartopy.crs as ccrs
@@ -540,6 +543,8 @@ if PLOT_CRPS_PER_STATION:
     crps_per_station_second_best = np.zeros(lat.shape[0], dtype = np.float32) 
 
     for i, c in enumerate(crps):
+
+        print(f"CRPS {MODELS[i].get_name()}: {np.nanmean(c, axis = (0, 1))}")
 
         if i == 0:
             crps_per_station_idx[:] = i
