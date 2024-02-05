@@ -65,10 +65,6 @@ P_mean, P_std,\
 _, _,\
 time_train, time_valid = load_training_dataset(DATA_PATH, RESIDUALS)
 
-print(X.shape, vX.shape)
-
-exit()
-
 bank_training   = Databank(X, Y, P, time_train, cuda = CUDA)
 bank_validation = Databank(vX, vY, P, time_valid, cuda = CUDA)
 
@@ -118,6 +114,8 @@ train_losses = np.zeros(N_EPOCHS, dtype = np.float32)
 valid_losses = np.zeros(N_EPOCHS, dtype = np.float32)
 
 for e in range(N_EPOCHS):
+
+    time_start = time()
 
     train_loss = 0.0
     valid_loss = 0.0
@@ -214,5 +212,5 @@ for e in range(N_EPOCHS):
             print(f"Early stopping at epoch {e_cntr}")
             break
 
-    print(f"Best validation loss: {best_valid_loss}\n")
+    print(f"Best validation loss: {best_valid_loss}\nEpoch duration: {time() - time_start}\n")
 
