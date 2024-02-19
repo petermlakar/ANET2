@@ -153,47 +153,5 @@ with torch.no_grad():
 
     print(f"Execution time time: {timef() - start_time} seconds")
 
-TIER = 1
-INSTITUTION = "ARSO"
-EXPERIMENT = "ESSD-benchmark"
-MODEL = "ANET"
-VERSION = "v2.0"
+np.save(join(OUTPUT_PATH, "forecasts"), P)
 
-np.save(join(OUTPUT_PATH, f"{TIER}_{EXPERIMENT}_{INSTITUTION}_{MODEL}_{VERSION}_test"), P)
-
-"""
-# Write netCDF4 file #
-
-
-netcdf = netCDF4.Dataset(join(EVALUATION_OUTPUT, f"{TIER}_{EXPERIMENT}_{INSTITUTION}_{MODEL}_{VERSION}_test.nc"), mode = "w", format = "NETCDF4_CLASSIC")
-
-netcdf.createDimension("station_id", X.shape[0])
-netcdf.createDimension("number", q.shape[-1])
-netcdf.createDimension("step", X.shape[2])
-netcdf.createDimension("time", X.shape[1])
-
-t2m = netcdf.createVariable("t2m", np.float32, ("station_id", "time", "step", "number"))
-
-t2m.institution = INSTITUTION
-t2m.tier = TIER
-t2m.experiment = EXPERIMENT
-t2m.model = MODEL_NAME
-t2m.version = VERSION
-t2m.output = "quantiles"
-
-t2m[:, :, :, :] = P
-
-netcdf.createVariable("model_altitude", np.float32, ("station_id"), fill_value = np.nan)
-netcdf.createVariable("model_latitude", np.float32, ("station_id"), fill_value = np.nan)
-netcdf.createVariable("model_longitude", np.float32, ("station_id"), fill_value = np.nan)
-netcdf.createVariable("model_land_usage", np.float32, ("station_id"), fill_value = np.nan)
-
-netcdf.createVariable("station_altitude", np.float32, ("station_id"), fill_value = np.nan)
-netcdf.createVariable("station_latitude", np.float32, ("station_id"), fill_value = np.nan)
-netcdf.createVariable("station_longitude", np.float32, ("station_id"), fill_value = np.nan)
-netcdf.createVariable("station_land_usage", np.float32, ("station_id"), fill_value = np.nan)
-
-print(netcdf)
-
-netcdf.close()
-"""

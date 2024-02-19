@@ -94,14 +94,14 @@ To train a specific model one has to modify the **config.json** file appropriate
 Especially, one has to change the *dataPath* field and *training* object.
 Here is an example of the required modification to train the **Flow** model
 ```json
-	"dataPath": "/DATA",
+"dataPath": "/.../DATA",
 
-	"training": 
-	{
-		"modelType": "FLOW", 
-		"postfix": "FLOW_TEST",
-		"residuals": true
-	}
+"training": 
+{
+	"modelType": "FLOW", 
+	"postfix": "FLOW_TEST",
+	"residuals": true
+}
 ```
 * The field *dataPath* should contain the absolute path to the folder containing the .nc training and test files.
 * The field *modelType* under the *training* object denotes the type of **ANET2** model we wish to train using the data specified in *dataPath*.
@@ -125,14 +125,14 @@ Since multiple model can be combined to form a single forecast it is required th
 To generate the post-processed forecasts one has to modify the *generate* object in the **config.json** file.
 Here is an example of the modified field
 ```json
-	"generate":
-	{
-		"modelsPath": "ANET2/FLOW_MODELS",
-		"outputPath": "FLOW_MODELS_GENERATED",
-		"residuals": true,
-		"averageParameters": false,
-		"useBestModelOnly": false
-	}
+"generate":
+{
+	"modelsPath": "/.../ANET2/FLOW_MODELS",
+	"outputPath": "/.../FLOW_MODELS_GENERATED",
+	"residuals": true,
+	"averageParameters": false,
+	"useBestModelOnly": false
+}
 ```
 * The field *modelPath* specifies the absolute path to the *parent model directory* containing all the trained model which should be considered for the formation of forecast.
 * The field *outputPath* specifies the absolute path to the folder which should contain the generated forecasts.
@@ -140,9 +140,44 @@ Here is an example of the modified field
 * The boolean field *averageParameters* denotes the way in which multiple forecast models should be combined. If set to *false* each model forms an independent probabilistic prediction in terms of quantiles. Then the final forecast is produced by averaging the respective quantiles from all model predictions. This procedure is recommended for the **Flow** model. If set to *true* the parameters of the individual distribution models are estimated and averaged to a single distribution model with which the quantile prediction is made. This is the preferred method for **Bern** and **Norm** models.
 * The boolean field *useBestModelOnly* chooses the best model based on their validation dataset losses and uses only that model to produce the final forecast.
 
+To start the forecast generation process run the **generate.py** script
+```console
+python3 generate.py
+```
+
 # Evaluation
 
 To evaluate the model on the test dataset in terms of calibration and sharpness one can use the **evaluate.py** script.
+Additional libraries are required for this and can be installed by invoking pip
+```console
+pip3 install matplotlib scipy cartopy
+```
+Again, the **config.json** file has to be configured before evaluation can begin 
+```json
+"evaluation":	
+{
+	"models":
+	[
+		{
+			"path": "/.../FLOW_MODELS_GENERATED/forecasts.npy",
+			"name": "Flow model",
+			"type": "ANET2"
+		}
+	],
+
+	"outputPath": "/.../FLOW_MODEL_EVALUATION"
+}
+```
+* The field *path* denotes the absolute path to the forecast file produced by the **generate.py** script.
+* The field *name* denotes the model name which will appear in the figure labels, titles, and names for the corresponding model.
+* The field *type* denotes the type or family of models to which the model belongs to. **Norm**, **Bern**, and **Flow** all belong to the **ANET2** family. Additional fields include **ANET1**, **EMOS**.
+* The field *outputPath* contains the absolute path to the evaluation output folder in which the final scores should be stored.
+
+One can add multiple models to the evaluation by simply addding an additional entry to the *models* array in the **config.json** file.
+To start the evaluation procedure call the **evaluate.py** script
+```console
+python3 evaluate.py
+```
 
 ## Publication
 
