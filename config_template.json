@@ -10,13 +10,6 @@
 
 	"generate":
 	{
-		"modelPath":  "",
-		"outputPath": "",
-		"residuals": "True"
-	},
-
-	"generateMulti":
-	{
 		"modelsPath": "",
 		"outputPath": "",
 		"residuals": "False",
@@ -49,6 +42,7 @@
 				"type": "ANET2"
 			}
 		],
+
 		"outputPath": ""
 	}
 }

@@ -22,7 +22,9 @@ To train the ANET2 model the following Python libraries are required and can be 
 pip3 install numpy==1.23.5 torch=1.13.1 netCDF4==1.6.2 xarray==2022.11.0
 ```
 
-## Usage
+## Usage examples
+
+### Training and test data
 
 ### Training the model
 
