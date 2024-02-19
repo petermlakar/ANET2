@@ -23,9 +23,9 @@ cfg = json.load(open(join(CFG_PATH, "config.json")))
 
 OUTPUT_PATH = cfg["generate"]["outputPath"] 
 MODELS_PATH = cfg["generate"]["modelsPath"]
-BEST_MODEL_ONLY    = cfg["generate"]["useBestModelOnly"] == "True"
-AVERAGE_PARAMETERS = cfg["generate"]["averageParameters"] == "True"
-RESIDUALS = cfg["generate"]["residuals"] == "True"
+BEST_MODEL_ONLY    = cfg["generate"]["useBestModelOnly"]
+AVERAGE_PARAMETERS = cfg["generate"]["averageParameters"]
+RESIDUALS = cfg["generate"]["residuals"]
 
 DATA_PATH = cfg["dataPath"]
 
