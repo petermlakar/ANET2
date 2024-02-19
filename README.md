@@ -103,67 +103,16 @@ Here is an example of the required modification to train the **Flow** model
 		"residuals": true
 	},
 ```
-The field *dataPath* should contain the absolute path to the folder containing the .nc training and test files.
+* The field *dataPath* should contain the absolute path to the folder containing the .nc training and test files.
+* The field *modelType* under the *training* object denotes the type of **ANET2** model we wish to train using the data specified in *dataPath*.
+* A value of *FLOW* denotes the normalizing flow based method. Two additional options include *BERN* and *NORM*, for Bernstein quantile regression and a normal predictive distribution, respectively.
+* The field *postfix* under the *training* object denotes the optional postfix which will be appended to the output model's folder name, for easier differentiation between multiple runs.
+* Finally, the boolean field *residuals* under the *training* object denotes whether the model should be trained on forecast errors or raw observations. A value of *true* denotes the former option.
 
-The field *modelType* under the *training* object denotes the type of **ANET2** model we wish to train using the data specified in *dataPath*.
-
-A value of *FLOW* denotes the normalizing flow based method. Two additional options include *BERN* and *NORM*, for Bernstein quantile regression and a normal predictive distribution, respectively.
-
-The field *postfix* under the *training* object denotes the optional postfix which will be appended to the output model's folder name, for easier differentiation between multiple runs.
-
-Finally, the boolean field *residuals* under the *training* object denotes whether the model should be trained on forecast errors or raw observations. A value of *true* denotes the former option.
-
-### Train model on custom data
-
-**ANET2** and its variants can also be trained on custom data with a varied amount of per-station predictors and custom lead time.
-```python
-
-import torch
-from torch.optim import Adam
-
-from models.ANET2 import Model
-
-LEARNING_RATE = 1e-3
-LEAD_TIME = 21                      # Lead time can be modified according to specific dataset needs
-NUMBER_OF_PER_STATION_PREDICTORS = 9 # Number of per-station predictors can be modified according to specific dataset needs
-
-
-model = Model(number_of_predictors = NUMBER_OF_PER_STATION_PREDICTORS, lead_time = LEAD_TIME)
-
-if torch.cuda.is_available(): model = model.cuda()
-model.train()
-
-opt = torch.optim.Adam(model.parameters(), lr = LEARNING_RATE, weight_decay = 1e-6)
-
-
-####
-# Prepare training dataset
-# Each batch returned from the training dataset should have the following format:
-# 
-# Training batch B := (x, p, y)
-#
-# x shape: [batch size, lead time, number of ensemble members] -> ensemble forecasts
-# p shape: [batch size, number of per-station predictors]      -> per-station predictors
-# y shape: [batch size, lead time]                             -> observations
-#
-
-D = ...
-####
-
-# Conduct training for one epoch (one pass through the training dataset)
-
-for i in range(len(D)):
-	
-	x, p, y = D.__getitem__(i)
-
-	loss = model.loss(x, p, y)
-
-	opt.zero_grad()
-        loss.backward()
-        opt.step()
-
+After the above modifications to the **config.json** file training is initiated by executing the **train.py** script
+```console
+python3 train.py
 ```
-
 
 ### Inference
 
