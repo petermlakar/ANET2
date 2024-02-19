@@ -24,7 +24,58 @@ pip3 install numpy==1.23.5 torch=1.13.1 netCDF4==1.6.2 xarray==2022.11.0
 
 ## Usage examples
 
+To use the ANET2 repository for training, generating, and evaluating its models, first clone the repository
+```console
+git clone git@github.com:petermlakar/ANET2.git
+```
+after which, rename the included **config_template.json** file to **config.json**
+```console
+cd ANET2 && cp config_template.json config.json
+```
+The **config.json** file represents an interface to the framework, providing the training, generation, and evaluation scripts with the required information pertaining to training and test data paths, model variants, etc.
+
+The following folder structure is recommended for this project:
+
+```
+
+ANET2
+	|
+	--- train.py
+	|
+	--- generate.py
+	|
+	--- evaluate.py
+	|
+	--- feature_importance.py
+	|
+	--- dataset.py 
+	|
+	--- models
+	    |
+	    --- ANET2.py
+	    |
+	    --- NORM.npy
+	    |
+	    --- BERN.npy
+	    |
+	    --- FLOW.npy
+DATA
+	|
+	-- ESSD_benchmark_test_data_forecasts.nc
+	|
+	-- ESSD_benchmark_test_data_observations.nc
+	|
+	-- ESSD_benchmark_training_data_forecasts.nc
+	|
+	-- ESSD_benchmark_training_data_observations.nc
+
+```
+The instructions on how to download the dataset which can be used with this repository are provided in the next section.
+
 ### Training and test data
+
+The training and test datasets, which can be used out-of-the-box with this repository, are accessible through the [EUPPBench dataset repository](https://github.com/EUPP-benchmark/ESSD-benchmark-datasets).
+Following the instructions provided in the dataset repository produces the required training and test .nc (netCDF) files, required by the ANET2 dataset loader. Do **not** rename the downloaded .nc files as the dataset loader anticipates the names to follow the default EUPPBench naming convention, such as **ESSD_benchmark_test_data_forecasts.nc**.
 
 ### Training the model
 
@@ -32,17 +83,8 @@ The training script facilitates the training of three different **ANET2** varian
 The three **ANET2** variants are:
 
 * **Norm**: Normal distribution used as the parametric distribution model in conjunction with the **ANET2** parameter estimation network
-```console
-python3 train.py NORM /path/to/EUPPBench/data/folder
-```
 * **Bern**: Bernstein quantile regression used as the parametric distribution model in conjunction with the **ANET2** parameter estimation network
-```console
-python3 train.py BERN /path/to/EUPPBench/data/folder 
-```
 * **Flow**: The **ANET2** variant using normalizing flows as parametric distribution models in conjunction with the **ANET2** parameter estimation network
-```console
-python3 train.py FLOW /path/to/EUPPBench/data/folder
-```
 
 ### Train model on custom data
 
