@@ -100,14 +100,18 @@ Here is an example of the required modification to train the **Flow** model
 	{
 		"modelType": "FLOW", 
 		"postfix": "FLOW_TEST",
-		"residuals": True
+		"residuals": true
 	},
 ```
 The field *dataPath* should contain the absolute path to the folder containing the .nc training and test files.
+
 The field *modelType* under the *training* object denotes the type of **ANET2** model we wish to train using the data specified in *dataPath*.
+
 A value of *FLOW* denotes the normalizing flow based method. Two additional options include *BERN* and *NORM*, for Bernstein quantile regression and a normal predictive distribution, respectively.
+
 The field *postfix* under the *training* object denotes the optional postfix which will be appended to the output model's folder name, for easier differentiation between multiple runs.
-Finally, the boolean field *residuals* under the *training* object denotes whether the model should be trained on forecast errors or raw observations. A value of *True* denotes the former option.
+
+Finally, the boolean field *residuals* under the *training* object denotes whether the model should be trained on forecast errors or raw observations. A value of *true* denotes the former option.
 
 ### Train model on custom data
 

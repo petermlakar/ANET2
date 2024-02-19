@@ -5,16 +5,16 @@
 	{
 		"modelType": "", 
 		"postfix": "",
-		"residuals": "True"
+		"residuals": true
 	},
 
 	"generate":
 	{
 		"modelsPath": "",
 		"outputPath": "",
-		"residuals": "False",
-		"averageParameters": "False",
-		"useBestModelOnly": "False"
+		"residuals": false,
+		"averageParameters": false,
+		"useBestModelOnly": false
 	},
 
 	"evaluation":	
