@@ -8,16 +8,15 @@
 It is defined by the combination of a neural network architecture, denoted as **ANET2**, and a probabilistic, parametric forecast model.
 The parametric forecast model can be one of three different approaches:
 
-* Normal distribution (**ANET2 Norm**)
-* Bernstein quantile regression (**ANET2 Bern**)
-* Normalizing flows (**ANET2 Flow**)
+* Normal distribution (**Norm**)
+* Bernstein quantile regression (**Bern**)
+* Normalizing flows (**Flow**)
 
-Here, the postfix of either **Norm**, **Bern**, and **Flow** denotes the different parametric models used in conjunction with the **ANET2** neural network architecure
-for its parameter estimation.
+**Norm**, **Bern**, and **Flow** denote the different parametric distribution models used in conjunction with the **ANET2** parameter regression neural network architecure.
 
 ## Requirements
 
-To train the ANET2 model the following Python libraries are required and can be installed with pip:
+To train the ANET2 models and generate forecasts the following Python libraries are required and can be installed with pip:
 ```console
 pip3 install numpy==1.23.5 torch=1.13.1 netCDF4==1.6.2 xarray==2022.11.0
 ```
@@ -173,7 +172,7 @@ Again, the **config.json** file has to be configured before evaluation can begin
 * The field *type* denotes the type or family of models to which the model belongs to. **Norm**, **Bern**, and **Flow** all belong to the **ANET2** family. Additional fields include **ANET1**, **EMOS**.
 * The field *outputPath* contains the absolute path to the evaluation output folder in which the final scores should be stored.
 
-One can add multiple models to the evaluation by simply addding an additional entry to the *models* array in the **config.json** file.
+One can include multiple models to the evaluation by simply addding an additional entry to the *models* array in the **config.json** file.
 To start the evaluation procedure call the **evaluate.py** script
 ```console
 python3 evaluate.py
