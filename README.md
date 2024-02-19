@@ -159,7 +159,7 @@ Again, the **config.json** file has to be configured before evaluation can begin
 	[
 		{
 			"path": "/.../FLOW_MODELS_GENERATED/forecasts.npy",
-			"name": "Flow model",
+			"name": "Flow_model",
 			"type": "ANET2"
 		}
 	],
