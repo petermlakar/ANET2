@@ -578,7 +578,7 @@ if PLOT_CRPS_PER_STATION:
 
 #########################################################
 
-if PLOT_QSS:
+if PLOT_QSS and len(MODELS) > 1:
 
     font = {"size": 30} 
     matplotlib.rc("font", **font)
@@ -614,7 +614,7 @@ if PLOT_QSS:
 
 #########################################################
 
-if PLOT_QSS_ALT:
+if PLOT_QSS_ALT and len(MODELS) > 1:
 
     font = {"size": 30}
     matplotlib.rc("font", **font)
@@ -656,7 +656,7 @@ if PLOT_QSS_ALT:
 
 #########################################################
 
-if PLOT_CSS_ALT:
+if PLOT_CSS_ALT and len(MODELS) > 1:
     
     font = {"size": 30}
     matplotlib.rc("font", **font)
