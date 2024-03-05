@@ -270,6 +270,20 @@ class Model(nn.Module):
         self.model_parameters = (torch.flatten(parameters[:, :, :, 0], start_dim = 0, end_dim = 1), torch.flatten(parameters[:, :, :, 1], start_dim = 0, end_dim = 1))
 
     @jit.export
+    def init_spline_block(self, i, prm_t, prm_y):
+
+        t = torch.cumsum(torch.cat([prm_t[:, i, 0][..., None], 1e-3 + self.sfp(prm_t[:, i, 1:])], dim = -1), dim = -1)
+        y = torch.cumsum(torch.cat([prm_y[:, i, 0][..., None], 1e-3 + self.sfp(prm_y[:, i, 1:])], dim = -1), dim = -1)
+
+        h  = t[:, 1:] - t[:, :-1]
+        df = (y[:, 1:] - y[:, :-1])/h
+
+        di = df[:, :-1]*df[:, 1:]/((y[:, 2:] - y[:, :-2])/(t[:, 2:] - t[:, :-2]))
+        d = torch.cat([self.ones.expand(di.shape[0], -1), di, self.ones.expand(di.shape[0], -1)], dim = -1)
+
+        self.spline_block.set(t[:, None], y[:, None], d[:, None])
+
+    @jit.export
     def pdf(self, f):
         
         fs0 = f.shape[0]
@@ -282,16 +296,8 @@ class Model(nn.Module):
 
         for i in torch.arange(self.nblocks):
 
-            t = torch.cumsum(torch.cat([prm_t[:, i, 0][..., None], 1e-3 + self.sfp(prm_t[:, i, 1:])], dim = -1), dim = -1)
-            y = torch.cumsum(torch.cat([prm_y[:, i, 0][..., None], 1e-3 + self.sfp(prm_y[:, i, 1:])], dim = -1), dim = -1)
+            self.init_spline_block(i, prm_t, prm_y)
 
-            h  = t[:, 1:] - t[:, :-1]
-            df = (y[:, 1:] - y[:, :-1])/h
-
-            di = df[:, :-1]*df[:, 1:]/((y[:, 2:] - y[:, :-2])/(t[:, 2:] - t[:, :-2]))
-            d = torch.cat([self.ones.expand(di.shape[0], -1), di, self.ones.expand(di.shape[0], -1)], dim = -1)
-
-            self.spline_block.set(t[:, None], y[:, None], d[:, None])
             dt.append(self.spline_block.dt(f))
             f  = self.spline_block(f)
 
@@ -317,22 +323,11 @@ class Model(nn.Module):
 
         dt = []
 
-        idx = torch.isnan(f)
-
-        idx = torch.logical_not(idx).view((fs0, fs1))
+        idx = torch.logical_not(torch.isnan(f)).view((fs0, fs1))
 
         for i in torch.arange(self.nblocks):
 
-            t = torch.cumsum(torch.cat([torch.unsqueeze(prm_t[:, i, 0], dim = -1), 1e-3 + self.sfp(prm_t[:, i, 1:])], dim = -1), dim = -1)
-            y = torch.cumsum(torch.cat([torch.unsqueeze(prm_y[:, i, 0], dim = -1), 1e-3 + self.sfp(prm_y[:, i, 1:])], dim = -1), dim = -1)
-
-            h  = t[:, 1:] - t[:, :-1]
-            df = (y[:, 1:] - y[:, :-1])/h
-
-            di = df[:, :-1]*df[:, 1:]/((y[:, 2:] - y[:, :-2])/(t[:, 2:] - t[:, :-2]))
-            d = torch.cat([self.ones.expand(di.shape[0], -1), di, self.ones.expand(di.shape[0], -1)], dim = -1)
-
-            self.spline_block.set(torch.unsqueeze(t, dim = 1), torch.unsqueeze(y, dim = 1), torch.unsqueeze(d, dim = 1))
+            self.init_spline_block(i, prm_t, prm_y)
 
             block_dt = self.spline_block.dt(f)
             log_dt = torch.log(block_dt)
@@ -372,16 +367,8 @@ class Model(nn.Module):
 
         for i in torch.flip(torch.arange(self.nblocks), dims = (0,)):
 
-            t = torch.cumsum(torch.cat([prm_t[:, i, 0][..., None], 1e-3 + self.sfp(prm_t[:, i, 1:])], dim = -1), dim = -1)
-            y = torch.cumsum(torch.cat([prm_y[:, i, 0][..., None], 1e-3 + self.sfp(prm_y[:, i, 1:])], dim = -1), dim = -1)
+            self.init_spline_block(i, prm_t, prm_y)
 
-            h  = t[:, 1:] - t[:, :-1]
-            df = (y[:, 1:] - y[:, :-1])/h
-
-            di = df[:, :-1]*df[:, 1:]/((y[:, 2:] - y[:, :-2])/(t[:, 2:] - t[:, :-2]))
-            d = torch.cat([self.ones.expand(di.shape[0], -1), di, self.ones.expand(di.shape[0], -1)], dim = -1)
-
-            self.spline_block.set(t[:, None], y[:, None], d[:, None])
             p = self.spline_block.backward(p)
 
         return p
