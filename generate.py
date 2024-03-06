@@ -6,14 +6,14 @@ from os.path import exists, join
 from os import mkdir, listdir
 
 import sys
-from dataset import Databank, Dataset, norm, standardize, destandardize, load_training_dataset, load_test_dataset 
+from dataset import Databank, Dataset, standardize, load_training_dataset, load_test_dataset 
 import netCDF4
 
 from time import time as timef
 
 import json
 
-CUDA = False #torch.cuda.is_available() 
+CUDA = torch.cuda.is_available() 
 
 #########################################################
 
@@ -50,8 +50,6 @@ X, Y, P,\
 time, stations,\
 valid_time = load_test_dataset(DATA_PATH)
 
-print(X.shape)
-
 X = standardize(X, X_mean, X_std)
 Y = standardize(Y, Y_mean, Y_std)
 P = standardize(P, P_mean, P_std)
@@ -61,6 +59,7 @@ P = standardize(P, P_mean, P_std)
 BATCH_SIZE = 512
 
 bank = Databank(X, Y, P, valid_time, cuda = CUDA)
+
 dataset = Dataset(bank, bank.index, batch_size = BATCH_SIZE, train = False, cuda = CUDA)
 
 #########################################################
@@ -69,11 +68,15 @@ models_losses = []
 models_regression  = []
 model_distribution = None
 
+tot_train_epochs = 0
+
 for m in listdir(MODELS_PATH):
 
-    models_regression.append(torch.jit.load(join(MODELS_PATH, m, "model_regression"), map_location = torch.device("cpu")))
+    models_regression.append(torch.jit.load(join(MODELS_PATH, m, "model_regression")))
     models_losses.append(np.loadtxt(join(MODELS_PATH, m, "Valid_loss")).min())
-    model_distribution = model_distribution if model_distribution is not None else torch.jit.load(join(MODELS_PATH, m, "model_distribution"), map_location = torch.device("cpu"))
+    model_distribution = model_distribution if model_distribution is not None else torch.jit.load(join(MODELS_PATH, m, "model_distribution"))
+
+    tot_train_epochs += np.loadtxt(join(MODELS_PATH, m, "Valid_loss")).shape[0]
 
     if CUDA:
         models_regression[-1] = models_regression[-1].to("cuda:0")
@@ -83,7 +86,6 @@ for m in listdir(MODELS_PATH):
 if CUDA:
     model_distribution = model_distribution.to("cuda:0")
 
-
 if BEST_MODEL_ONLY:
 
     i = np.where(np.array(models_losses) == np.array(models_losses).min())[0][0]
@@ -92,6 +94,8 @@ if BEST_MODEL_ONLY:
     models_losses = models_losses[i]
 
     print(f"Best only mode: loss -> {models_losses}")
+
+print("Avg number of epoch trained: ", tot_train_epochs/len(listdir(MODELS_PATH)))
 
 #########################################################
 
@@ -125,7 +129,7 @@ with torch.no_grad():
             parameters = []
 
             for model in models_regression:
-                parameters.append(model(x, p, j[0]))
+                parameters.append(model(x, p, torch.from_numpy(j[0])))
 
             parameters = torch.stack(parameters, dim = 0).mean(dim = 0)
             model_distribution.set_parameters(parameters)
@@ -137,8 +141,7 @@ with torch.no_grad():
             f = []
 
             for model in models_regression:
-
-                model_distribution.set_parameters(model(x, p))
+                model_distribution.set_parameters(model(x, p, torch.from_numpy(j[0])))
                 f.append(model_distribution.iF(qtmp))
 
             f = torch.stack(f, dim = 0).mean(dim = 0)
@@ -148,9 +151,7 @@ with torch.no_grad():
         else:
             P[j[0], j[1], :, :]  = f.detach().cpu().numpy()*X_std + X_mean
 
-            print( P[j[0], j[1], :, :].min(), P[j[0], j[1], :, :].max(), x.mean())
 
     print(f"Execution time time: {timef() - start_time} seconds")
 
-np.save(join(OUTPUT_PATH, "forecasts"), P)
-
+np.save(join(OUTPUT_PATH, "forecasts.npy"), P)

@@ -86,7 +86,7 @@ class Dataset(torch.utils.data.Dataset):
         else:
             X = self.X_batch
 
-        return X[:t], self.P_batch[:t], self.Y_batch[:t], torch.tensor(i, dtype = torch.int64)
+        return X[:t], self.P_batch[:t], self.Y_batch[:t], i
     
     def shuffle(self):
         

@@ -25,7 +25,7 @@ cfg = json.load(open(join(CFG_PATH, "config.json")))
 DATA_PATH = cfg["dataPath"]
 MODEL_TYPE = cfg["training"]["modelType"]
 
-RESIDUALS = cfg["training"]["residuals"] == "True"
+RESIDUALS = cfg["training"]["residuals"]
 
 #########################################################
 
