@@ -86,7 +86,7 @@ class Dataset(torch.utils.data.Dataset):
         else:
             X = self.X_batch
 
-        return X[:t], self.P_batch[:t], self.Y_batch[:t], i
+        return X[:t], self.P_batch[:t], self.Y_batch[:t], torch.tensor(i, dtype = torch.int64)
     
     def shuffle(self):
         
@@ -106,10 +106,10 @@ def norm(T, remove_nan = False):
 
     return (T - m)/s, m, s
 
-def normalize(T, m, s):
+def standardize(T, m, s):
     return (T - m)/s
 
-def denormalize(T, m, s):
+def destandardize(T, m, s):
     return T*s + m
 
 def load_training_dataset(path, residuals = False):
