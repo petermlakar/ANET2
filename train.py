@@ -8,7 +8,7 @@ from os import mkdir
 import sys
 
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from dataset import Databank, Dataset, norm, load_training_dataset
+from dataset import Databank, Dataset, load_training_dataset
 
 import json
 
