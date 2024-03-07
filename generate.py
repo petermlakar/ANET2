@@ -147,7 +147,7 @@ with torch.no_grad():
         else:
             P[j[0], j[1], :, :]  = f.detach().cpu().numpy()*X_std + X_mean
 
-            print( P[j[0], j[1], :, :].min(), P[j[0], j[1], :, :].max(), x.mean())
+        #print( P[j[0], j[1], :, :].min(), P[j[0], j[1], :, :].max(), x.mean())
 
     print(f"Execution time time: {timef() - start_time} seconds")
 
