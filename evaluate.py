@@ -733,7 +733,7 @@ if PLOT_CSS_ALT and len(MODELS) > 1:
         return np.std(dif[k*batch_size:min((k + 1)*batch_size, len(dif))])
 
     a.set_xticks(list(map(lambda j: 2*j + 0.5, range(bins))), labels = list(map(lambda k: "$\mu$: {:.0f}\n$\sigma$: {:.0f}".format(f_mean(k), f_std(k)), range(bins))), fontsize = 20)
-    a.hlines(0, 0, 2*bins - 2, linestyle = "dashed", color = colors[0], linewidth = 2, zorder = 1)
+    a.hlines(0, 0, 2*bins + 1.5*w, linestyle = "dashed", color = colors[0], linewidth = 2, zorder = 1)
 
     f.tight_layout()
     f.savefig(join(OUTPUT_PATH, f"css_alt.pdf"), bbox_inches = "tight", format = "pdf")
