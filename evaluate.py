@@ -720,7 +720,7 @@ if PLOT_SHARPNESS:
             scvr = s[coverage]
             scvr["label"] = MODELS[i].get_name()
 
-            pos = np.arange(1, 4)
+            pos = np.arange(1, len(MODELS) + 1)
             wdt = 0.25
 
             a.hlines(scvr["med"], 0.5, pos[i], linestyle = "dashed", linewidth = 1, color = "orange", zorder = 0)
