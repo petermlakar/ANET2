@@ -654,7 +654,7 @@ if PLOT_QSS_ALT and len(MODELS) > 1:
 #########################################################
 
 if PLOT_CSS_ALT and len(MODELS) > 1:
-   
+    
     """
     font = {"size": 30}
     matplotlib.rc("font", **font)
@@ -676,7 +676,7 @@ if PLOT_CSS_ALT and len(MODELS) > 1:
         c = np.nanmean(c[idx], axis = (1, 2))
         v = (1.0 - c/crps_reference)*100.0
 
-        v = medfilt(v, kernel_size = 15)
+        v = medfilt(v, kernel_size = 5)
 
         a.plot(dif, v, color = colors[i], linewidth = 5, label = MODELS[i].get_name(), linestyle = "dashed" if i == 0 else "solid", marker = markers[i], markersize = 15, markevery = 0.1)
 
@@ -686,6 +686,7 @@ if PLOT_CSS_ALT and len(MODELS) > 1:
 
     f.tight_layout()
     f.savefig(join(OUTPUT_PATH, f"css_alt.pdf"), bbox_inches = "tight", format = "pdf")
+    
     """
 
     font = {"size": 30}
@@ -695,7 +696,7 @@ if PLOT_CSS_ALT and len(MODELS) > 1:
     #a.grid()
 
     width = 1/(len(MODELS) - 1)
-    bins = 10
+    bins = 7
     dif = np.abs(alt - alt_m)
     idx = np.argsort(dif)
     dif = dif[idx]
@@ -722,9 +723,9 @@ if PLOT_CSS_ALT and len(MODELS) > 1:
 
             a.set_aspect(0.5*(a.get_xlim()[1] - a.get_xlim()[0])/(a.get_ylim()[1] - a.get_ylim()[0]))
 
-    a.set_xlabel("Mean and standard deviation of\nthe absolute difference in altitude [meters]")
+    a.set_xlabel("Mean and standard deviation of\nthe absolute difference in altitude for each bin [meters]")
     a.set_ylabel("CRPSS [Percentage]")
-    a.grid()
+    #a.grid()
 
     def f_mean(k):
         return np.mean(dif[k*batch_size:min((k + 1)*batch_size, len(dif))])
@@ -733,7 +734,7 @@ if PLOT_CSS_ALT and len(MODELS) > 1:
         return np.std(dif[k*batch_size:min((k + 1)*batch_size, len(dif))])
 
     a.set_xticks(list(map(lambda j: 2*j + 0.5, range(bins))), labels = list(map(lambda k: "$\mu$: {:.0f}\n$\sigma$: {:.0f}".format(f_mean(k), f_std(k)), range(bins))), fontsize = 20)
-    a.hlines(0, 0, 2*bins + 1.5*w, linestyle = "dashed", color = colors[0], linewidth = 2, zorder = 1)
+    a.hlines(0, 0, 2*bins - 1, linestyle = "dashed", color = colors[0], linewidth = 4, zorder = 1)
 
     f.tight_layout()
     f.savefig(join(OUTPUT_PATH, f"css_alt.pdf"), bbox_inches = "tight", format = "pdf")
