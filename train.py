@@ -104,7 +104,7 @@ if CUDA:
 
 #########################################################
 
-opt = torch.optim.Adam(model_regression.parameters(), lr = LEARNING_RATE, weight_decay = 1e-6)
+opt = torch.optim.AdamW(model_regression.parameters(), lr = LEARNING_RATE, weight_decay = 1e-6)
 sch = ReduceLROnPlateau(opt, factor = 0.9, patience = 3)
 
 #########################################################
