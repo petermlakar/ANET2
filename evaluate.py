@@ -268,10 +268,7 @@ class RawEnsemble(EvaluationMetrics):
 
         c = (0.65*(model_altitude - station_altitude)/100.0)[:, None, None, None]
         self.x = np.sort(x, axis = -1) if not temperature_correction else np.sort(x + c, axis = -1)
-
-        self.x.astype(np.float64)
-
-        print("Ensamble spread: ", np.mean(np.var(self.x, axis = -1), axis = (0, 1)))
+        self.x.astype(np.float32)
 
     def load(self, raw_forecast):
         pass
@@ -658,6 +655,7 @@ if PLOT_QSS_ALT and len(MODELS) > 1:
 
 if PLOT_CSS_ALT and len(MODELS) > 1:
     
+    """
     font = {"size": 30}
     matplotlib.rc("font", **font)
 
@@ -678,13 +676,65 @@ if PLOT_CSS_ALT and len(MODELS) > 1:
         c = np.nanmean(c[idx], axis = (1, 2))
         v = (1.0 - c/crps_reference)*100.0
 
-        v = medfilt(v, kernel_size = 15)
+        v = medfilt(v, kernel_size = 5)
 
         a.plot(dif, v, color = colors[i], linewidth = 5, label = MODELS[i].get_name(), linestyle = "dashed" if i == 0 else "solid", marker = markers[i], markersize = 15, markevery = 0.1)
 
     a.set_aspect((a.get_xlim()[1] - a.get_xlim()[0])/(a.get_ylim()[1] - a.get_ylim()[0]))
     a.set_xlabel("Absolute difference in altitude [meters]")
     a.set_ylabel("CRPSS [Percentage]")
+
+    f.tight_layout()
+    f.savefig(join(OUTPUT_PATH, f"css_alt.pdf"), bbox_inches = "tight", format = "pdf")
+    
+    """
+
+    font = {"size": 30}
+    matplotlib.rc("font", **font)
+
+    f, a = plt.subplots(1, figsize = (20, 10), dpi = 300)
+    #a.grid()
+
+    width = 1/(len(MODELS) - 1)
+    bins = 7
+    dif = np.abs(alt - alt_m)
+    idx = np.argsort(dif)
+    dif = dif[idx]
+
+    batch_size = int(np.ceil(len(dif)/float(bins)))
+    bins = int(np.ceil(len(dif)/batch_size))
+
+    crps_reference = np.nanmean(crps[0][idx], axis = (1, 2))
+
+    for i, c in enumerate(crps[1:]):
+
+        c = np.nanmean(c[idx], axis = (1, 2))
+        v = (1.0 - c/crps_reference)*100.0
+
+        for j in range(bins):
+
+            i0 = j*batch_size
+            i1 = min((j + 1)*batch_size, len(dif))
+
+            bplt = a.boxplot(v[i0:i1], positions = [2*j + i*width + width*0.5], patch_artist = True, showfliers = False, widths = [width], zorder = 3)
+
+            for patch in bplt["boxes"]:
+                patch.set_facecolor(colors[i + 1])
+
+            a.set_aspect(0.5*(a.get_xlim()[1] - a.get_xlim()[0])/(a.get_ylim()[1] - a.get_ylim()[0]))
+
+    a.set_xlabel("Mean and standard deviation of\nthe absolute difference in altitude for each bin [meters]")
+    a.set_ylabel("CRPSS [Percentage]")
+    #a.grid()
+
+    def f_mean(k):
+        return np.mean(dif[k*batch_size:min((k + 1)*batch_size, len(dif))])
+
+    def f_std(k):
+        return np.std(dif[k*batch_size:min((k + 1)*batch_size, len(dif))])
+
+    a.set_xticks(list(map(lambda j: 2*j + 0.5, range(bins))), labels = list(map(lambda k: "$\mu$: {:.0f}\n$\sigma$: {:.0f}".format(f_mean(k), f_std(k)), range(bins))), fontsize = 20)
+    a.hlines(0, 0, 2*bins - 1, linestyle = "dashed", color = colors[0], linewidth = 4, zorder = 1)
 
     f.tight_layout()
     f.savefig(join(OUTPUT_PATH, f"css_alt.pdf"), bbox_inches = "tight", format = "pdf")
@@ -706,7 +756,6 @@ if PLOT_SHARPNESS:
             ymin = s[coverage]["whislo"] if ymin is None or s[coverage]["whislo"] < ymin else ymin
             ymax = s[coverage]["whishi"] if ymax is None or s[coverage]["whishi"] > ymax else ymax
 
-
     for j, coverage in enumerate([0.5, 0.88, 0.96]): 
 
         f, a = plt.subplots(1, dpi = 300, figsize = (10, 10))
@@ -720,7 +769,7 @@ if PLOT_SHARPNESS:
             scvr = s[coverage]
             scvr["label"] = MODELS[i].get_name()
 
-            pos = np.arange(1, 4)
+            pos = np.arange(1, len(MODELS) + 1)
             wdt = 0.25
 
             a.hlines(scvr["med"], 0.5, pos[i], linestyle = "dashed", linewidth = 1, color = "orange", zorder = 0)
@@ -728,6 +777,7 @@ if PLOT_SHARPNESS:
 
             for patch in bplt["boxes"]:
                 patch.set_facecolor(colors[i])
+                patch.set(linewidth = 0)
 
             a.set_aspect((a.get_xlim()[1] - a.get_xlim()[0])/(a.get_ylim()[1] - a.get_ylim()[0]))
 
