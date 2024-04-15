@@ -121,9 +121,8 @@ def load_training_dataset(path, residuals = False):
     P_alt_st = X.coords["station_altitude"].to_numpy().astype(np.float32)
     P_lat_st = X.coords["station_latitude"].to_numpy().astype(np.float32)
     P_lon_st = X.coords["station_longitude"].to_numpy().astype(np.float32)
-    P_alt_tr = X.coords["model_altitude"].to_numpy().astype(np.float32)
 
-    P = np.stack([P_alt_md, P_alt_st, P_lat_st, P_lon_st, P_alt_tr], axis = 1)
+    P = np.stack([P_alt_md, P_alt_st, P_lat_st, P_lon_st], axis = 1)
 
     X = np.squeeze(X.to_numpy())
 
@@ -224,9 +223,8 @@ def load_test_dataset(path):
     P_alt_st = X.coords["station_altitude"].to_numpy().astype(np.float32)
     P_lat_st = X.coords["station_latitude"].to_numpy().astype(np.float32)
     P_lon_st = X.coords["station_longitude"].to_numpy().astype(np.float32)
-    P_alt_tr = X.coords["model_altitude"].to_numpy().astype(np.float32)
 
-    P = np.stack([P_alt_md, P_alt_st, P_lat_st, P_lon_st, P_alt_tr], axis = 1)
+    P = np.stack([P_alt_md, P_alt_st, P_lat_st, P_lon_st], axis = 1)
 
     X = np.squeeze(X.to_numpy())
     T = np.zeros((1, len(time)), dtype = np.float32)
