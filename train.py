@@ -50,7 +50,7 @@ match MODEL_TYPE:
         print(f"Invalid model type in config {MODEL_TYPE}...\nSupported types are: FLOW, NORM, BERN")
         exit()
 
-model_regression = ANET2({"lead_time": LEAD_TIME, "number_of_predictors": 5 + 1}, model_distribution.number_of_outputs, NUMBER_OF_STATIONS)
+model_regression = ANET2({"lead_time": LEAD_TIME, "number_of_predictors": 4 + 1}, model_distribution.number_of_outputs, NUMBER_OF_STATIONS)
 
 #########################################################
 # Load training data, remove nan
