@@ -13,7 +13,7 @@ from time import time as timef
 
 import json
 
-CUDA = False #torch.cuda.is_available() 
+CUDA =True #torch.cuda.is_available() 
 
 #########################################################
 
@@ -83,7 +83,6 @@ for m in listdir(MODELS_PATH):
 if CUDA:
     model_distribution = model_distribution.to("cuda:0")
 
-print(model_distribution.nblocks, model_distribution.nknots)
 
 if BEST_MODEL_ONLY:
 

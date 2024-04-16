@@ -58,28 +58,6 @@ class EvaluationMetrics(ABC):
     # Continuous ranked probability score estimation based on Hersbach 2000
     def crps(self, y):
 
-        """
-        import properscoring as ps
-        s0, s1, s2 = y.shape
-
-        x = self.get_forecast().reshape(s0*s1*s2, 51)
-        y = y.reshape(s0*s1*s2)
-        
-        G = x.shape[0]//100
-
-        c = []
-        for i in range(G):
-            c.append(ps.crps_ensemble(y[i*100:(i + 1)*100], x[i*100:(i + 1)*100]))
-
-            if (i + 1) % 10000 == 0:
-                print(f"{(i + 1)/G}")
-        
-        c.append(ps.crps_ensemble(y[G*100:], x[G*100:]))
-        c = np.concatenate(c, axis = 0).reshape(s0, s1, s2)
-
-        return c
-        """
-
         s0, s1, s2 = y.shape
     
         x = self.get_forecast()
