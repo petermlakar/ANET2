@@ -232,7 +232,7 @@ class SplineBlock(nn.Module):
 
 class Model(nn.Module):
 
-    def __init__(self, lead_time):
+    def __init__(self, lead_time, nblocks = 4, nknots = 5):
 
         super().__init__()
 
@@ -242,8 +242,8 @@ class Model(nn.Module):
         self.sqrt2pi = torch.sqrt(torch.tensor(2.0, dtype = torch.float32)*np.pi)
         self.sfp = nn.Softplus()
     
-        self.nblocks = 4
-        self.nknots  = 5
+        self.nblocks = nblocks
+        self.nknots  = nknots
 
         self.number_of_parameters = self.nblocks*self.nknots*2
        
