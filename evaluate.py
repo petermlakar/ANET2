@@ -379,14 +379,14 @@ with open(join(OUTPUT_PATH, "stats.txt"), "w") as f:
 
 #########################################################
 
-PLOT_PIT  = True 
+PLOT_PIT  = not True 
 PLOT_CRPS = True
 PLOT_BIAS = True
 PLOT_CRPS_PER_STATION = True
-PLOT_QSS = True
-PLOT_QSS_ALT = True
-PLOT_CSS_ALT = True
-PLOT_SHARPNESS = True
+PLOT_QSS = not True
+PLOT_QSS_ALT = not True
+PLOT_CSS_ALT = not True
+PLOT_SHARPNESS = not True
 
 #########################################################
 
@@ -455,8 +455,10 @@ if PLOT_CRPS:
 
         a.plot(c.mean(axis = 0), linewidth = 4, label = MODELS[i].get_name(), color = colors[i], marker = markers[i], markersize = 15)
 
-        a.set_xlabel("Lead time [6 hours]")
+        a.set_xlabel("Lead time [Hours]")
         a.set_ylabel("CRPS [K]")
+
+    a.set_xticks([0, 4, 8, 12, 16, 20], labels = [0, 24, 48, 72, 96, 120])
 
     a.grid()
     a.legend()
@@ -472,17 +474,22 @@ if PLOT_BIAS:
 
     from matplotlib.ticker import FormatStrFormatter
 
+    font = {"size"   : 30}    
+    matplotlib.rc("font", **font)
+
     f, a = plt.subplots(1, figsize = (10, 10), dpi = 300)
     a.hlines(0, 0, 21, linestyle = "dashed", color = "black")
 
-    a.yaxis.set_major_formatter(FormatStrFormatter("%.1f"))
+    a.yaxis.set_major_formatter(FormatStrFormatter("%.2f"))
 
     for i, c in enumerate(bias):
 
         a.plot(c, linewidth = 4, label = MODELS[i].get_name(), color = colors[i], marker = markers[i], markersize = 15)
 
-        a.set_xlabel("Lead time [6 hours]")
+        a.set_xlabel("Lead time [Hours]")
         a.set_ylabel("Bias [K]")
+    
+    a.set_xticks([0, 4, 8, 12, 16, 20], labels = [0, 24, 48, 72, 96, 120])
 
     a.grid()
     #a.legend()
@@ -513,28 +520,28 @@ if PLOT_CRPS_PER_STATION:
     a.coastlines()
 
     crps_per_station_idx  = np.zeros(lat.shape[0], dtype = np.int32)
-    crps_per_station_best = np.zeros(lat.shape[0], dtype = np.float32) 
+    crps_per_station_best = np.nanmean(crps[0], axis = (1, 2)) 
 
-    crps_per_station_second_best = np.zeros(lat.shape[0], dtype = np.float32) 
+    crps_per_station_second_best = np.ones(lat.shape[0], dtype = np.float32)*np.inf
 
-    for i, c in enumerate(crps):
+    for i, c in enumerate(crps[1:]):
+
+        i = i + 1
 
         print(f"CRPS {MODELS[i].get_name()}: {np.nanmean(c, axis = (0, 1))}")
 
-        if i == 0:
-            crps_per_station_idx[:] = i
-            crps_per_station_best[:] = np.nanmean(c, axis = (1, 2))
-            crps_per_station_second_best[:] = crps_per_station_best[:] 
-        else:
-            crps_now = np.nanmean(c, axis = (1, 2))
+        crps_now = np.nanmean(c, axis = (1, 2))
 
-            idx_now = crps_per_station_best > crps_now
+        print(np.any(crps_now == crps_per_station_best))
 
-            crps_per_station_idx[idx_now] = i
-            crps_per_station_best[idx_now] = crps_now[idx_now]
+        idx_now = crps_per_station_best > crps_now
 
-            idx_now = np.logical_and(crps_per_station_second_best > crps_now, crps_per_station_best < crps_now)
-            crps_per_station_second_best[idx_now] = crps_now[idx_now]
+        crps_per_station_second_best[idx_now] = crps_per_station_best[idx_now]
+        crps_per_station_idx[idx_now] = i
+        crps_per_station_best[idx_now] = crps_now[idx_now]
+
+        idx_now = np.logical_and(crps_per_station_second_best > crps_now, crps_per_station_best < crps_now)
+        crps_per_station_second_best[idx_now] = crps_now[idx_now]
 
     for i in np.unique(crps_per_station_idx):
 
