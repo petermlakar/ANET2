@@ -156,16 +156,6 @@ class EvaluationMetrics(ABC):
             else:
                 c[i] = np.logical_and(y >= r[..., i - 1], y < r[..., i])[y_valid].sum()
 
-        """
-        c = c/y_valid.sum()
-
-        mass = 1/(r.shape[-1] + 1) if not edges_prob_mass else edges_prob_mass
-
-        MRE = ((c[0] + c[-1])/(mass*2.0) - 1.0)*100.0
-
-        return {"MRE": MRE, "pit": c}
-        """
-
         c_tot = y_valid.sum()
 
         mass = 1/(r.shape[-1] + 1) if not edges_prob_mass else edges_prob_mass
@@ -198,11 +188,14 @@ class EvaluationMetrics(ABC):
 
             Q50 = np.median(d)
             Q25, Q75 = np.percentile(d, [25, 75])
+            Q05, Q95 = np.percentile(d, [ 2, 98])
 
             IQR = Q75 - Q25
 
-            WH_TOP = d[d < Q75 + IQR*1.5].max()
-            WH_BOT = d[d > Q25 - IQR*1.5].min()
+            #WH_TOP = d[d < Q75 + IQR*1.5].max()
+            #WH_BOT = d[d > Q25 - IQR*1.5].min()
+            WH_TOP = Q95
+            WH_BOT = Q05
 
             res[coverage] = {"med": Q50, "q1": Q25, "q3": Q75, "whislo": WH_BOT, "whishi": WH_TOP}
 
@@ -227,11 +220,14 @@ class EvaluationMetrics(ABC):
 
             Q50 = np.median(d)
             Q25, Q75 = np.percentile(d, [25, 75])
+            Q05, Q95 = np.percentile(d, [ 2, 98])
 
             IQR = Q75 - Q25
 
-            WH_TOP = d[d < Q75 + IQR*1.5].max()
-            WH_BOT = d[d > Q25 - IQR*1.5].min()
+            #WH_TOP = d[d < Q75 + IQR*1.5].max()
+            #WH_BOT = d[d > Q25 - IQR*1.5].min()
+            WH_TOP = Q95
+            WH_BOT = Q05
 
             res[coverage] = {"med": Q50, "q1": Q25, "q3": Q75, "whislo": WH_BOT, "whishi": WH_TOP}
 
@@ -324,6 +320,8 @@ DATA_PATH = cfg["dataPath"]
 MODELS      = cfg["evaluation"]["models"]
 OUTPUT_PATH = cfg["evaluation"]["outputPath"] 
 
+REFERENCE_MODEL = cfg["evaluation"]["referenceModel"]
+
 #########################################################
 
 data  = load_test_dataset(DATA_PATH)
@@ -352,41 +350,55 @@ crps  = [m.crps(Y)                   for m in MODELS]
 bias  = [m.bias(Y)                   for m in MODELS]
 qloss = [m.quantile_loss(Y)          for m in MODELS]
 
-stats = []
+import json
+
+stats = {}
 
 for i, model in enumerate(MODELS):
 
-    stats.append("Model {} scores:\n     Continuous ranked probability score: {:.3f}\n     Quantile loss: {:.3f}\n     Median absolute error: {:.3f}\n     Bias: {:.3f}\n     Central interval sharpness:\n".format(
-                  model.get_name(), np.nanmean(crps[i]), 
-                  np.nanmean(qloss[i]), np.nanmean(mae[i]), np.nanmean(bias[i])))
+    model_name = model.get_name()
 
-    for cov in shrp[i]:
-        stats[-1] += "         Coverage {:.2f}: q50 {:.3f} | q25 {:.3f} q75 {:.3f} | whilo {:.3f} whihi {:.3f}\n".format(
-                      cov, 
-                      shrp[i][cov]["med"], shrp[i][cov]["q1"], shrp[i][cov]["q3"], shrp[i][cov]["whislo"], shrp[i][cov]["whishi"])
+    stats[model_name] = {}
+    stats[model_name]["crps_mean"]  = f"{np.nanmean(crps[i]):.3f}"
+    stats[model_name]["crps_std"]   = f"{np.nanstd(crps[i]):.3f}"
+    stats[model_name]["qloss_mean"] = f"{np.nanmean(qloss[i]):.3f}"
+    stats[model_name]["qloss_median_mean"] = f"{np.nanmean(qloss[i][..., qloss[i].shape[-1]//2]):.3f}"
+    stats[model_name]["qloss_median_std"]  = f"{np.nanstd(qloss[i][..., qloss[i].shape[-1]//2]):.3f}"
+    stats[model_name]["bias_mean"] = f"{np.nanmean(bias[i]):.3f}"
+    stats[model_name]["bias_std"]  = f"{np.nanstd(bias[i]):.3f}"
 
-    stats[-1] += "     Composite interval sharpness:\n"
     for cov in shrp_comp[i]:
-        stats[-1] += "         Coverage {:.2f}: q50 {:.3f} | q25 {:.3f} q75 {:.3f} | whilo {:.3f} whihi {:.3f}\n".format(
-                      cov, 
-                      shrp_comp[i][cov]["med"], shrp_comp[i][cov]["q1"], shrp_comp[i][cov]["q3"], shrp_comp[i][cov]["whislo"], shrp_comp[i][cov]["whishi"])
 
-    print(stats[-1])
+        stats[model_name][f"shrp_composite_{cov:.2f}_q50"] = f"{shrp_comp[i][cov]['med']:.3f}"
+        stats[model_name][f"shrp_composite_{cov:.2f}_q25"] = f"{shrp_comp[i][cov]['q1']:.3f}"
+        stats[model_name][f"shrp_composite_{cov:.2f}_q75"] = f"{shrp_comp[i][cov]['q3']:.3f}"
+        stats[model_name][f"shrp_composite_{cov:.2f}_whislo"] = f"{shrp_comp[i][cov]['whislo']:.3f}"
+        stats[model_name][f"shrp_composite_{cov:.2f}_whishi"] = f"{shrp_comp[i][cov]['whishi']:.3f}"
 
-with open(join(OUTPUT_PATH, "stats.txt"), "w") as f:
-    for s in stats:
-        f.write(s)
+    # Compute relative performance improvements
+
+    #stats[model_name]["rel_crps_mean"] = f"{np.nanmean(100*(crps[REFERENCE_MODEL] - crps[i])/crps[REFERENCE_MODEL]):.3f}"
+    #stats[model_name]["rel_crps_std"]  = f"{np.nanstd(100*(crps[REFERENCE_MODEL] - crps[i])/crps[REFERENCE_MODEL]):.3f}"
+
+    #stats[model_name]["rel_qloss_median_mean"] = f"{np.nanmean(100*(qloss[REFERENCE_MODEL][..., qloss[i].shape[-1]//2] - qloss[i][..., qloss[i].shape[-1]//2])/qloss[REFERENCE_MODEL][..., qloss[i].shape[-1]//2]):.3f}"
+    #stats[model_name]["rel_qloss_median_std"]  = f"{np.nanstd(100*(qloss[REFERENCE_MODEL][..., qloss[i].shape[-1]//2] - qloss[i][..., qloss[i].shape[-1]//2])/qloss[REFERENCE_MODEL][..., qloss[i].shape[-1]//2]):.3f}"
+ 
+    #stats[model_name]["rel_bias_mean"] = f"{np.nanmean(bias[REFERENCE_MODEL] - bias[i]):.3f}"
+    #stats[model_name]["rel_bias_std"]  = f"{np.nanstd(bias[REFERENCE_MODEL] - bias[i]):.3f}"
+
+    print(stats[model_name], end = "\n\n")
+
+with open(join(OUTPUT_PATH, "stats.json"), "w") as f:
+    json.dump(stats, f)
 
 #########################################################
 
-PLOT_PIT  = not True 
-PLOT_CRPS = True
-PLOT_BIAS = True
-PLOT_CRPS_PER_STATION = True
-PLOT_QSS = not True
-PLOT_QSS_ALT = not True
+PLOT_PIT = not True 
+PLOT_CRPS_BIAS_QSS = not True
+PLOT_CRPS_PER_STATION = not True
+PLOT_QSS_ALT = not True 
 PLOT_CSS_ALT = not True
-PLOT_SHARPNESS = not True
+PLOT_SHARPNESS = True
 
 #########################################################
 
@@ -401,102 +413,118 @@ markers = ["o", "v", "^", "h", "X", "D"]
 
 if PLOT_PIT:
 
+    from matplotlib.ticker import FormatStrFormatter
+
     pit_max = 0.0
     pit_plots = []
 
     font = {"size"   : 30}    
     matplotlib.rc("font", **font)
 
+    number_of_models = int(np.array([k.get_name() != "ECMWF" for k in MODELS]).sum())
+
+    f, ax = plt.subplots(1, number_of_models, figsize = (10*number_of_models, 10), dpi = 300)
     prob_mass = np.diff(np.linspace(0.01, 0.99, X.shape[-1], dtype = np.float32))[0]
 
+    offset = 0
     for i, p in enumerate(pit):
 
-        pit_plots.append(plt.subplots(1, figsize = (10, 10), dpi = 300))
+        name = MODELS[i].get_name()
+
+        if name == "ECMWF":
+            offset += 1
+            continue
+
+        a = ax[i - offset]
 
         nbins = p["pit"].shape[0]
 
-        c = pit_plots[i][1].hist(np.arange(1, nbins + 1), weights = p["pit"], bins = nbins, label = "{}\nMRE: {:.2f}%".format(MODELS[i].get_name(), p["MRE"]), color = colors[i], edgecolor = "white")
-
-        pit_plots[i][1].hlines(prob_mass, 2, nbins - 1, color = "black", linestyle = "dashed")
-        pit_plots[i][1].hlines(0.01, 1, 2, color = "black")
-        pit_plots[i][1].hlines(0.01, X.shape[-1], X.shape[-1] + 1, color = "black")
+        c = a.hist(np.arange(1, nbins + 1), weights = p["pit"], bins = nbins, label = f"{name}\nMRE: {p['MRE']:.2f}%", color = colors[i], edgecolor = "white")
+        a.hlines(prob_mass, 2, nbins - 1, color = "black", linestyle = "dashed")
+        a.hlines(0.01, 1, 2, color = "black")
+        a.hlines(0.01, X.shape[-1], X.shape[-1] + 1, color = "black")
 
         pit_max = pit_max if c[0].max() < pit_max else c[0].max()
 
-        pit_plots[i][1].legend()
-        pit_plots[i][1].set_xlabel("Bins")
+        a.legend()
+        a.set_xlabel("Bins")
 
-        if i == 0:
-            pit_plots[i][1].set_ylabel("Density")
+        if i == 0 or name == "ECMWF":
+            a.set_ylabel("Density")
 
-        pit_plots[i][1].set_xticks([5.5, 15.5, 25.5, 35.5, 45.5], labels = [5, 15, 25, 35, 45])
+        a.set_xticks([5.5, 15.5, 25.5, 35.5, 45.5], labels = [5, 15, 25, 35, 45])
 
+    for a in ax:
 
-    for i in range(len(pit)):
+        a.set_ylim(0.0, pit_max*1.3)
+        #a.set_ylim(0.0, 0.1)
+        a.set_aspect((a.get_xlim()[1] - a.get_xlim()[0])/(a.get_ylim()[1] - a.get_ylim()[0]))
 
-        pit_plots[i][1].set_ylim(0.0, pit_max*1.3)
-        pit_plots[i][1].set_aspect((pit_plots[i][1].get_xlim()[1] - pit_plots[i][1].get_xlim()[0])/(pit_plots[i][1].get_ylim()[1] - pit_plots[i][1].get_ylim()[0]))
-
-        pit_plots[i][0].tight_layout()
-        pit_plots[i][0].savefig(join(OUTPUT_PATH, f"PIT_{MODELS[i].get_name()}.pdf"), bbox_inches = "tight", format = "pdf")
-        plt.close(pit_plots[i][0])
-
-#########################################################
-
-if PLOT_CRPS:
-
-    font = {"size"   : 30}    
-    matplotlib.rc("font", **font)
-
-    f, a = plt.subplots(1, figsize = (10, 10), dpi = 300)
-    for i, c in enumerate(crps):
-
-        c = np.nanmean(c, axis = 1)
-
-        a.plot(c.mean(axis = 0), linewidth = 4, label = MODELS[i].get_name(), color = colors[i], marker = markers[i], markersize = 15)
-
-        a.set_xlabel("Lead time [Hours]")
-        a.set_ylabel("CRPS [K]")
-
-    a.set_xticks([0, 4, 8, 12, 16, 20], labels = [0, 24, 48, 72, 96, 120])
-
-    a.grid()
-    a.legend()
-    a.set_aspect((a.get_xlim()[1] - a.get_xlim()[0])/(a.get_ylim()[1] - a.get_ylim()[0]))
-    
     f.tight_layout()
-    f.savefig(join(OUTPUT_PATH, "CRPS.pdf"), bbox_inches = "tight", format = "pdf")
+    f.savefig(join(OUTPUT_PATH, f"PIT.pdf"), bbox_inches = "tight", format = "pdf")
     plt.close(f)
 
 #########################################################
 
-if PLOT_BIAS:
-
-    from matplotlib.ticker import FormatStrFormatter
+if PLOT_CRPS_BIAS_QSS:
 
     font = {"size"   : 30}    
     matplotlib.rc("font", **font)
+    from matplotlib.ticker import FormatStrFormatter
 
-    f, a = plt.subplots(1, figsize = (10, 10), dpi = 300)
+    f, ax = plt.subplots(1, 3, figsize = (30, 10), dpi = 300)
+  
+    a = ax[0]
+    for i, c in enumerate(crps):
+
+        c = np.nanmean(c, axis = 1)
+        a.plot(c.mean(axis = 0), linewidth = 4, label = MODELS[i].get_name(), color = colors[i], marker = markers[i], markersize = 15)
+
+    a.set_ylim(None, 2.2)
+    #a.set_xlabel("Lead time [Hours]")
+    a.set_ylabel("CRPS [K]")
+    a.set_xticks([0, 4, 8, 12, 16, 20], labels = [0, 24, 48, 72, 96, 120])
+    a.grid()
+    a.legend()
+    a.set_aspect((a.get_xlim()[1] - a.get_xlim()[0])/(a.get_ylim()[1] - a.get_ylim()[0]))
+
+    a = ax[1]
     a.hlines(0, 0, 21, linestyle = "dashed", color = "black")
-
-    a.yaxis.set_major_formatter(FormatStrFormatter("%.2f"))
+    a.yaxis.set_major_formatter(FormatStrFormatter("%.1f"))
 
     for i, c in enumerate(bias):
-
         a.plot(c, linewidth = 4, label = MODELS[i].get_name(), color = colors[i], marker = markers[i], markersize = 15)
 
-        a.set_xlabel("Lead time [Hours]")
-        a.set_ylabel("Bias [K]")
-    
+    #a.set_xlabel("Lead time [Hours]")
+    a.set_ylabel("Bias [K]")
     a.set_xticks([0, 4, 8, 12, 16, 20], labels = [0, 24, 48, 72, 96, 120])
 
     a.grid()
-    #a.legend()
+    #a.set_yticks([-0.2, -0.1, 0.0, 0.1, 0.2], labels = [-0.2, -0.1, 0.0, 0.1, 0.2])
     a.set_aspect((a.get_xlim()[1] - a.get_xlim()[0])/(a.get_ylim()[1] - a.get_ylim()[0]))
 
+    a = ax[2]
+    qloss_reference = np.reshape(qloss[REFERENCE_MODEL], (np.prod(qloss[REFERENCE_MODEL].shape[:-1]), qloss[REFERENCE_MODEL].shape[-1]))
+    qloss_reference = np.nanmean(qloss_reference, axis = 0)
+
+    quantile_levels = np.linspace(0.01, 0.99, qloss_reference.shape[0])
+
+    for i, q in enumerate(qloss):
+    
+        q = np.reshape(q, (np.prod(q.shape[:-1]), q.shape[-1]))
+        q = np.nanmean(q, axis = 0)
+
+        v = (1.0 - q/qloss_reference)*100.0
+
+        a.plot(quantile_levels, v, color = colors[i], label = MODELS[i].get_name(), linewidth = 5, linestyle = "dashed" if i == 0 else "solid", marker = markers[i], markersize = 15, markevery = 0.1)
+
+    a.set_aspect((a.get_xlim()[1] - a.get_xlim()[0])/(a.get_ylim()[1] - a.get_ylim()[0]))
+    a.grid()
+    #a.set_xlabel("Quantile level")
+    a.set_ylabel("QSS [Percentage]")
+    
     f.tight_layout()
-    f.savefig(join(OUTPUT_PATH, "BIAS.pdf"), bbox_inches = "tight", format = "pdf")
+    f.savefig(join(OUTPUT_PATH, "CRPS_BIAS_QSS.pdf"), bbox_inches = "tight", format = "pdf")
     plt.close(f)
 
 #########################################################
@@ -555,43 +583,6 @@ if PLOT_CRPS_PER_STATION:
     a.legend(fancybox = True, framealpha = 0.5, markerscale = 2)
 
     f.savefig(join(OUTPUT_PATH, "crps_per_station.png"), bbox_inches = "tight")
-
-    plt.close(f)
-
-#########################################################
-
-if PLOT_QSS and len(MODELS) > 1:
-
-    font = {"size": 30} 
-    matplotlib.rc("font", **font)
-
-    f, a = plt.subplots(1, figsize = (10, 10), dpi = 300)
-
-    qloss_reference = np.reshape(qloss[0], (np.prod(qloss[0].shape[:-1]), qloss[0].shape[-1]))
-    qloss_reference = np.nanmean(qloss_reference, axis = 0)
-
-    quantile_levels = np.linspace(0.01, 0.99, qloss_reference.shape[0])
-
-    print(f"QSS reference shape: {qloss_reference.shape}")
-
-    for i, q in enumerate(qloss):
-    
-        q = np.reshape(q, (np.prod(q.shape[:-1]), q.shape[-1]))
-        q = np.nanmean(q, axis = 0)
-
-        v = (1.0 - q/qloss_reference)*100.0
-
-        a.plot(quantile_levels, v, color = colors[i], label = MODELS[i].get_name(), linewidth = 5, linestyle = "dashed" if i == 0 else "solid", marker = markers[i], markersize = 15, markevery = 0.1)
-
-    a.set_aspect((a.get_xlim()[1] - a.get_xlim()[0])/(a.get_ylim()[1] - a.get_ylim()[0]))
-    a.grid()
-    a.legend()
-
-    a.set_xlabel("Quantile level")
-    a.set_ylabel("QSS [percentage]")
-
-    f.tight_layout()
-    f.savefig(join(OUTPUT_PATH, "qss.pdf"), bbox_inches = "tight", format = "pdf")
     plt.close(f)
 
 #########################################################
@@ -601,20 +592,22 @@ if PLOT_QSS_ALT and len(MODELS) > 1:
     font = {"size": 30}
     matplotlib.rc("font", **font)
 
-    for (min_alt, max_alt) in [(-5, 800), (800, 2000), (2000, 3600)]:
+    f, ax = plt.subplots(1, 3, figsize = (30, 10), dpi = 300)
+
+    for j, (min_alt, max_alt) in enumerate([(-5, 800), (800, 2000), (2000, 3600)]):
 
         idx = np.logical_and(alt >= min_alt, alt < max_alt)
 
-        qloss_reference = np.nanmean(qloss[0][idx], axis = (0, 1, 2))
+        qloss_reference = np.nanmean(qloss[REFERENCE_MODEL][idx], axis = (0, 1, 2))
         quantile_levels = np.linspace(0.01, 0.99, qloss_reference.shape[0])
 
-        f, a = plt.subplots(1, figsize = (10, 10), dpi = 300)
+        a = ax[j]
         a.grid()
 
-        if max_alt < 3600:
-            a.set_title(f"{idx.sum()} stations\nAltitude in ({min_alt}, {max_alt}] meters")
-        else:
-            a.set_title(f"{idx.sum()} stations\nAltitude in ({min_alt}, {max_alt}) meters")
+        #if max_alt < 3600:
+        #    a.set_title(f"{idx.sum()} stations\nAltitude in ({min_alt}, {max_alt}] meters")
+        #else:
+        #    a.set_title(f"{idx.sum()} stations\nAltitude in ({min_alt}, {max_alt}) meters")
 
         for i, q in enumerate(qloss):
             
@@ -624,56 +617,22 @@ if PLOT_QSS_ALT and len(MODELS) > 1:
             a.plot(quantile_levels, v, color = colors[i], linewidth = 5, label = MODELS[i].get_name(), linestyle = "dashed" if i == 0 else "solid", marker = markers[i], markersize = 15, markevery = 0.1)
             a.set_xlabel("Quantile level")
 
-            if i == 0:
-                a.set_ylabel("QSS [percentage]")
+        if j == 0:
+            a.set_ylabel("QSS [Percentage]")
 
         a.set_aspect((a.get_xlim()[1] - a.get_xlim()[0])/(a.get_ylim()[1] - a.get_ylim()[0]))
         if (max_alt == 800):
             a.legend(loc = "best")
 
-        f.tight_layout()
-        f.savefig(join(OUTPUT_PATH, f"qss_alt_{max_alt}.pdf"), bbox_inches = "tight", format = "pdf")
+    f.tight_layout()
+    f.savefig(join(OUTPUT_PATH, f"qss_alt.pdf"), bbox_inches = "tight", format = "pdf")
 
-        plt.close(f)
+    plt.close(f)
 
 #########################################################
 
 if PLOT_CSS_ALT and len(MODELS) > 1:
     
-    """
-    font = {"size": 30}
-    matplotlib.rc("font", **font)
-
-    dif = np.abs(alt - alt_m)
-
-    print(f"Median: {np.percentile(dif, 50)} q3: {np.percentile(dif, 75)} max: {dif.max()}")
-
-    idx = np.argsort(dif)
-    dif = dif[idx]
-
-    crps_reference = np.nanmean(crps[0][idx], axis = (1, 2))
-
-    f, a = plt.subplots(1, figsize = (10, 10), dpi = 300)
-    a.grid()
-
-    for i, c in enumerate(crps):
-
-        c = np.nanmean(c[idx], axis = (1, 2))
-        v = (1.0 - c/crps_reference)*100.0
-
-        v = medfilt(v, kernel_size = 5)
-
-        a.plot(dif, v, color = colors[i], linewidth = 5, label = MODELS[i].get_name(), linestyle = "dashed" if i == 0 else "solid", marker = markers[i], markersize = 15, markevery = 0.1)
-
-    a.set_aspect((a.get_xlim()[1] - a.get_xlim()[0])/(a.get_ylim()[1] - a.get_ylim()[0]))
-    a.set_xlabel("Absolute difference in altitude [meters]")
-    a.set_ylabel("CRPSS [Percentage]")
-
-    f.tight_layout()
-    f.savefig(join(OUTPUT_PATH, f"css_alt.pdf"), bbox_inches = "tight", format = "pdf")
-    
-    """
-
     font = {"size": 30}
     matplotlib.rc("font", **font)
 
@@ -689,28 +648,42 @@ if PLOT_CSS_ALT and len(MODELS) > 1:
     batch_size = int(np.ceil(len(dif)/float(bins)))
     bins = int(np.ceil(len(dif)/batch_size))
 
-    crps_reference = np.nanmean(crps[0][idx], axis = (1, 2))
+    crps_reference = np.nanmean(crps[REFERENCE_MODEL][idx], axis = (1, 2))
+    offset = 0
 
-    for i, c in enumerate(crps[1:]):
+    legend_bplots = []
+    legend_labels = []
+
+    for i, c in enumerate(crps):
+
+        if i == REFERENCE_MODEL:
+            offset += 1
+            continue
 
         c = np.nanmean(c[idx], axis = (1, 2))
         v = (1.0 - c/crps_reference)*100.0
+
+        legend_labels.append(MODELS[i].get_name())
 
         for j in range(bins):
 
             i0 = j*batch_size
             i1 = min((j + 1)*batch_size, len(dif))
 
-            bplt = a.boxplot(v[i0:i1], positions = [2*j + i*width + width*0.5], patch_artist = True, showfliers = False, widths = [width], zorder = 3)
+            bplt = a.boxplot(v[i0:i1], positions = [2*j + (i - offset)*width + width*0.5], patch_artist = True, showfliers = False, widths = [width], zorder = 3)
 
             for patch in bplt["boxes"]:
-                patch.set_facecolor(colors[i + 1])
+                patch.set_facecolor(colors[i])
 
             a.set_aspect(0.5*(a.get_xlim()[1] - a.get_xlim()[0])/(a.get_ylim()[1] - a.get_ylim()[0]))
 
-    a.set_xlabel("Mean and standard deviation of\nthe absolute difference in altitude for each bin [meters]")
+            if j == 0:
+                legend_bplots.append(bplt["boxes"][0])
+   
+    a.legend(legend_bplots, legend_labels, loc = "upper left", fontsize = 20)
+    a.set_xlabel("Mean and standard deviation of\nthe absolute difference in altitude for each bin [Meters]")
     a.set_ylabel("CRPSS [Percentage]")
-    #a.grid()
+    a.grid()
 
     def f_mean(k):
         return np.mean(dif[k*batch_size:min((k + 1)*batch_size, len(dif))])
@@ -718,8 +691,9 @@ if PLOT_CSS_ALT and len(MODELS) > 1:
     def f_std(k):
         return np.std(dif[k*batch_size:min((k + 1)*batch_size, len(dif))])
 
-    a.set_xticks(list(map(lambda j: 2*j + 0.5, range(bins))), labels = list(map(lambda k: "$\mu$: {:.0f}\n$\sigma$: {:.0f}".format(f_mean(k), f_std(k)), range(bins))), fontsize = 20)
-    a.hlines(0, 0, 2*bins - 1, linestyle = "dashed", color = colors[0], linewidth = 4, zorder = 1)
+    a.set_xticks(list(map(lambda j: 2*j + 0.5, range(bins))), labels = list(map(lambda k: "$\mu$: {:.0f}\n$\sigma$: {:.0f}".format(f_mean(k), f_std(k)), range(bins))), fontsize = 25)
+    a.tick_params(axis = "y", labelsize = 25)
+    a.hlines(0, 0, 2*bins - 1, linestyle = "dashed", color = colors[REFERENCE_MODEL], linewidth = 4, zorder = 1)
 
     f.tight_layout()
     f.savefig(join(OUTPUT_PATH, f"css_alt.pdf"), bbox_inches = "tight", format = "pdf")
@@ -738,12 +712,17 @@ if PLOT_SHARPNESS:
     for coverage in [0.5, 0.88, 0.96]:
         for s in shrp_comp:
 
+            if MODELS[i].get_name() == "ECMWF":
+                continue
+
             ymin = s[coverage]["whislo"] if ymin is None or s[coverage]["whislo"] < ymin else ymin
             ymax = s[coverage]["whishi"] if ymax is None or s[coverage]["whishi"] > ymax else ymax
 
+    f, ax = plt.subplots(1, 3, figsize = (30, 10), dpi = 300)
+
     for j, coverage in enumerate([0.5, 0.88, 0.96]): 
 
-        f, a = plt.subplots(1, dpi = 300, figsize = (10, 10))
+        a = ax[j] 
         a.yaxis.set_major_formatter(FormatStrFormatter("%.1f"))
 
         a.set_title(f"Composite coverage interval {int(coverage*100)}%")
@@ -751,10 +730,13 @@ if PLOT_SHARPNESS:
 
         for i, s in enumerate(shrp_comp): 
 
+            if MODELS[i].get_name() == "ECMWF":
+                continue
+
             scvr = s[coverage]
             scvr["label"] = MODELS[i].get_name()
 
-            pos = np.arange(1, len(MODELS) + 1)
+            pos = np.arange(1, len(MODELS) + 1) if all([k.get_name() != "ECMWF" for k in MODELS]) else np.arange(1, len(MODELS))
             wdt = 0.25
 
             a.hlines(scvr["med"], 0.5, pos[i], linestyle = "dashed", linewidth = 1, color = "orange", zorder = 0)
@@ -771,13 +753,12 @@ if PLOT_SHARPNESS:
         #a.set_yticks(y_ticks, fontsize = 30)
         #a.set_ylim(0.0, 15.0)
         a.set_aspect((a.get_xlim()[1] - a.get_xlim()[0])/(a.get_ylim()[1] - a.get_ylim()[0]))
-
         a.set_xlabel("Models")
 
         if j == 0:
             a.set_ylabel("Coverage interval length [K]")
 
-        f.tight_layout()
-        f.savefig(join(OUTPUT_PATH, f"cmp_shrp_{int(coverage*100)}.pdf"), bbox_inches = "tight", format = "pdf")
+    f.tight_layout()
+    f.savefig(join(OUTPUT_PATH, f"SHRP.pdf"), bbox_inches = "tight", format = "pdf")
 
 
