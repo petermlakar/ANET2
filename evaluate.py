@@ -342,7 +342,7 @@ y_valid = np.logical_not(np.isnan(Y))
 
 probability_mass = np.diff(np.linspace(0.01, 0.99, X.shape[-1], dtype = np.float32))[0]
 
-pit       = [m.pit(Y, y_valid, edges_prob_mass = 0.01)       for m in MODELS]
+pit       = [m.pit(Y, y_valid, edges_prob_mass = 1/(X.shape[-1] + 1))       for m in MODELS]
 shrp_comp = [m.sharpness_composite(probability_mass = probability_mass) for m in MODELS]
 shrp      = [m.sharpness()           for m in MODELS]
 mae   = [m.median_absolute_error(Y)  for m in MODELS]
@@ -366,6 +366,7 @@ for i, model in enumerate(MODELS):
     stats[model_name]["qloss_median_std"]  = f"{np.nanstd(qloss[i][..., qloss[i].shape[-1]//2]):.3f}"
     stats[model_name]["bias_mean"] = f"{np.nanmean(bias[i]):.3f}"
     stats[model_name]["bias_std"]  = f"{np.nanstd(bias[i]):.3f}"
+    stats[model_name]["mae"]       = f"{np.nanmean(mae[i]):.3f}"
 
     for cov in shrp_comp[i]:
 
@@ -393,20 +394,21 @@ with open(join(OUTPUT_PATH, "stats.json"), "w") as f:
 
 #########################################################
 
-PLOT_PIT = not True 
+PLOT_PIT = True 
 PLOT_CRPS_BIAS_QSS = not True
 PLOT_CRPS_PER_STATION = not True
 PLOT_QSS_ALT = not True 
 PLOT_CSS_ALT = not True
-PLOT_SHARPNESS = True
+PLOT_SHARPNESS = not True
 
 #########################################################
 
 colors = [
+
+        (88.0/255.0, 123.0/255.0, 183.0/255.0),
         (169.0/255.0, 214.0/255.0, 124.0/255.0),
         (203.0/255.0, 191.0/255.0, 113.0/255.0),
         (206.0/255.0, 91.0/255.0, 91.0/255.0),
-        (88.0/255.0, 123.0/255.0, 183.0/255.0),
         (102.0/255.0, 153.0/255.0, 102.0/255.0)]
 
 markers = ["o", "v", "^", "h", "X", "D"]
@@ -421,43 +423,46 @@ if PLOT_PIT:
     font = {"size"   : 30}    
     matplotlib.rc("font", **font)
 
-    number_of_models = int(np.array([k.get_name() != "ECMWF" for k in MODELS]).sum())
+    number_of_models = max(int(np.array([k.get_name() != "ECMWF" for k in MODELS]).sum()), 1)
 
     f, ax = plt.subplots(1, number_of_models, figsize = (10*number_of_models, 10), dpi = 300)
-    prob_mass = np.diff(np.linspace(0.01, 0.99, X.shape[-1], dtype = np.float32))[0]
+    #prob_mass = np.diff(np.linspace(0.01, 0.99, X.shape[-1], dtype = np.float32))[0]
+    prob_mass = 1.0/(X.shape[-1] + 1) 
 
     offset = 0
     for i, p in enumerate(pit):
 
         name = MODELS[i].get_name()
 
-        if name == "ECMWF":
+        if name == "ECMWF" and len(MODELS) > 1:
             offset += 1
             continue
 
-        a = ax[i - offset]
+        a = ax[i - offset] if len(MODELS) > 1 else ax
 
         nbins = p["pit"].shape[0]
 
         c = a.hist(np.arange(1, nbins + 1), weights = p["pit"], bins = nbins, label = f"{name}\nMRE: {p['MRE']:.2f}%", color = colors[i], edgecolor = "white")
         a.hlines(prob_mass, 2, nbins - 1, color = "black", linestyle = "dashed")
-        a.hlines(0.01, 1, 2, color = "black")
-        a.hlines(0.01, X.shape[-1], X.shape[-1] + 1, color = "black")
+        #a.hlines(0.01, 1, 2, color = "black")
+        #a.hlines(0.01, X.shape[-1], X.shape[-1] + 1, color = "black")
+        a.hlines(prob_mass, 1, 2, color = "black")
+        a.hlines(prob_mass, X.shape[-1], X.shape[-1] + 1, color = "black")
 
         pit_max = pit_max if c[0].max() < pit_max else c[0].max()
 
         a.legend()
-        a.set_xlabel("Bins")
+        a.set_xlabel("Ranks")
 
         if i == 0 or name == "ECMWF":
             a.set_ylabel("Density")
 
         a.set_xticks([5.5, 15.5, 25.5, 35.5, 45.5], labels = [5, 15, 25, 35, 45])
 
-    for a in ax:
+    for a in ax if len(MODELS) > 1 else [ax]:
 
-        a.set_ylim(0.0, pit_max*1.3)
-        #a.set_ylim(0.0, 0.1)
+        #a.set_ylim(0.0, pit_max*1.3)
+        a.set_ylim(0.0, 0.1)
         a.set_aspect((a.get_xlim()[1] - a.get_xlim()[0])/(a.get_ylim()[1] - a.get_ylim()[0]))
 
     f.tight_layout()
