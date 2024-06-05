@@ -13,7 +13,7 @@ from time import time as timef
 
 import json
 
-CUDA = False #torch.cuda.is_available() 
+CUDA = torch.cuda.is_available() 
 
 #########################################################
 
